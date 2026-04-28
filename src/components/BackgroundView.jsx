@@ -1,7 +1,6 @@
 import React from 'react';
 import { Icon } from './Icons';
-import { api, apiBase } from '../api';
-import { useToast, NetworkBlockModal } from './Toast';
+import { api } from '../api';
 
 /* ── 상태 뱃지 ── */
 const STATUS = {
@@ -86,10 +85,7 @@ const Lightbox = ({ src, onClose }) => (
 
 /* ── 배경 카드 (사이드바) ── */
 const LocationCard = ({ loc, selected, onClick, onDelete, pid }) => {
-  const bust = loc._bust || Date.now();
-  const imgUrl = loc.image_url
-    ? loc.image_url + (loc.image_url.includes('?') ? `&v=${bust}` : `?v=${bust}`)
-    : (loc.image_path ? `${apiBase}/media/${pid}/${loc.image_path}?v=${bust}` : null);
+  const imgUrl = loc.image_url || (loc.image_path ? `/api/media/${pid}/${loc.image_path}` : null);
   return (
     <div
       onClick={onClick}
@@ -120,18 +116,9 @@ const LocationCard = ({ loc, selected, onClick, onDelete, pid }) => {
 };
 
 /* ── 배경 상세 패널 ── */
-const LocationDetail = ({ loc, pid, generating, onGenerateImage, onEditImage, onLightbox, onRegenDesc, descLoading }) => {
-  const toast = useToast();
+const LocationDetail = ({ loc, pid, generating, onGenerateImage, onLightbox, onRegenDesc, descLoading }) => {
   const [extraPrompt, setExtraPrompt] = React.useState('');
-  const [promptDraft, setPromptDraft] = React.useState(null); // null=보기, string=편집
-  const [promptRegenLoading, setPromptRegenLoading] = React.useState(false);
-  const [useRag, setUseRag] = React.useState(true);
-  const [mode, setMode] = React.useState('generate'); // 'generate' | 'edit'
-  const [editPrompt, setEditPrompt] = React.useState('');
-  const bust = loc._bust || Date.now();
-  const imgUrl = loc.image_url
-    ? loc.image_url + (loc.image_url.includes('?') ? `&v=${bust}` : `?v=${bust}`)
-    : (loc.image_path ? `${apiBase}/media/${pid}/${loc.image_path}?v=${bust}` : null);
+  const imgUrl = loc.image_url || (loc.image_path ? `/api/media/${pid}/${loc.image_path}` : null);
   const desc   = typeof loc.description_en === 'object' ? loc.description_en : {};
 
   return (
@@ -144,122 +131,40 @@ const LocationDetail = ({ loc, pid, generating, onGenerateImage, onEditImage, on
 
       {/* 이미지 영역 */}
       <div>
-        {/* 헤더 행 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <div style={LBL}>BACKGROUND IMAGE</div>
           <StatusBadge status={generating ? 'generating' : loc.image_status} />
+          <button
+            className="btn sm ghost"
+            style={{ marginLeft: 'auto', fontSize: 10 }}
+            onClick={() => onGenerateImage(extraPrompt)}
+            disabled={generating}
+          >
+            {generating
+              ? <><span className="spinner" style={{ width: 9, height: 9, borderWidth: 1.5 }} />생성 중...</>
+              : <><Icon name="sparkles" size={10} />이미지 생성</>}
+          </button>
         </div>
-
-        {/* 탭 */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 12, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-2)', width: 'fit-content' }}>
-          {[['generate', '새로 생성'], ['edit', '이미지 편집']].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setMode(key)}
-              disabled={generating || (key === 'edit' && !imgUrl)}
-              style={{
-                padding: '5px 14px', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-                background: mode === key ? 'var(--mint)' : 'transparent',
-                color: mode === key ? '#000' : (key === 'edit' && !imgUrl ? 'var(--text-4)' : 'var(--text-3)'),
-                transition: 'all 0.15s',
-                opacity: key === 'edit' && !imgUrl ? 0.4 : 1,
-              }}
-              title={key === 'edit' && !imgUrl ? '먼저 이미지를 생성하세요' : ''}
-            >
-              {key === 'generate' ? <><Icon name="sparkles" size={10} /> {label}</> : <><Icon name="edit" size={10} /> {label}</>}
-            </button>
-          ))}
-        </div>
-
-        {/* 탭 콘텐츠: 새로 생성 */}
-        {mode === 'generate' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-            {/* RAG 토글 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                onClick={() => setUseRag(v => !v)}
-                disabled={generating}
-                style={{
-                  fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono)',
-                  padding: '3px 8px', borderRadius: 5, cursor: 'pointer', border: 'none',
-                  background: useRag ? 'color-mix(in oklch, #22c55e 15%, var(--surface))' : 'var(--surface-2)',
-                  color: useRag ? '#22c55e' : 'var(--text-4)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {useRag ? '✦ AI Hub 참고' : '— AI Hub 미사용'}
-              </button>
-              <button
-                className="btn sm primary"
-                style={{ marginLeft: 'auto', fontSize: 11, background: 'var(--mint)', color: '#000', border: 'none', fontWeight: 700 }}
-                onClick={() => onGenerateImage('', '', useRag)}
-                disabled={generating}
-              >
-                {generating
-                  ? <><span className="spinner" style={{ width: 9, height: 9, borderWidth: 1.5 }} />생성 중...</>
-                  : <><Icon name="sparkles" size={10} />생성</>}
-              </button>
-            </div>
-            {/* AI Hub 참고 내용 */}
-            {loc.rag_hint && (
-              <div style={{
-                padding: '8px 12px',
-                background: 'color-mix(in oklch, #22c55e 6%, var(--surface))',
-                border: '1px solid color-mix(in oklch, #22c55e 25%, transparent)',
-                borderRadius: 7,
-              }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', marginBottom: 4 }}>
-                  ✦ AI HUB 참고 데이터
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', lineHeight: 1.55 }}>
-                  {loc.rag_hint}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 탭 콘텐츠: 이미지 편집 */}
-        {mode === 'edit' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', lineHeight: 1.5 }}>
-              기존 이미지를 유지하면서 추가 지시만 반영합니다.
-            </div>
-            <textarea
-              value={editPrompt}
-              onChange={e => setEditPrompt(e.target.value)}
-              placeholder="편집 지시 — 예: change to rainy night, add neon reflections, make it darker"
-              disabled={generating}
-              rows={3}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 6, color: 'var(--text)', fontSize: 11,
-                fontFamily: 'var(--font-mono)', padding: '8px 10px',
-                resize: 'vertical', lineHeight: 1.5, outline: 'none',
-                opacity: generating ? 0.5 : 1,
-              }}
-            />
-            <button
-              className="btn sm primary"
-              style={{ alignSelf: 'flex-end', fontSize: 11, background: 'var(--violet)', color: '#fff', border: 'none', fontWeight: 700 }}
-              onClick={() => onEditImage(editPrompt)}
-              disabled={generating || !editPrompt.trim()}
-            >
-              {generating
-                ? <><span className="spinner" style={{ width: 9, height: 9, borderWidth: 1.5 }} />편집 중...</>
-                : <><Icon name="edit" size={10} />편집 적용</>}
-            </button>
-          </div>
-        )}
-
-        {/* 이미지 */}
+        <textarea
+          value={extraPrompt}
+          onChange={e => setExtraPrompt(e.target.value)}
+          placeholder="추가 프롬프트 (선택) — 예: rainy night, neon reflections on wet pavement"
+          disabled={generating}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 6, color: 'var(--text)', fontSize: 11,
+            fontFamily: 'var(--font-mono)', padding: '8px 10px',
+            resize: 'vertical', minHeight: 54, marginBottom: 8,
+            opacity: generating ? 0.5 : 1,
+          }}
+        />
         {imgUrl ? (
           <img src={imgUrl} alt="" onClick={() => onLightbox(imgUrl)}
             style={{ width: '100%', aspectRatio: '3/2', borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', background: 'var(--surface-2)', display: 'block', cursor: 'zoom-in' }} />
         ) : (
           <div style={{ width: '100%', height: 140, borderRadius: 8, border: '1px dashed var(--border)', display: 'grid', placeItems: 'center', color: 'var(--text-4)', fontSize: 11 }}>
-            이미지 없음 — 새로 생성 탭에서 생성하세요
+            이미지 없음 — 위 버튼으로 생성
           </div>
         )}
       </div>
@@ -290,61 +195,11 @@ const LocationDetail = ({ loc, pid, generating, onGenerateImage, onEditImage, on
           </>}
       </div>
 
-      {/* GENERATED PROMPT — 편집 + 재생성 */}
+      {/* prompt 미리보기 */}
       {loc.prompt && (
-        <div style={{ background: 'color-mix(in oklch, var(--violet) 6%, var(--surface))', border: '1px solid color-mix(in oklch, var(--violet) 20%, transparent)', borderRadius: 8, overflow: 'hidden' }}>
-          {/* 헤더 */}
-          <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: promptDraft !== null ? '1px solid color-mix(in oklch, var(--violet) 15%, transparent)' : 'none' }}>
-            <div style={{ ...LBL, marginBottom: 0, color: 'var(--violet)' }}>GENERATED PROMPT</div>
-            <button
-              className="btn sm ghost"
-              style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 7px', color: 'var(--violet)', border: '1px solid color-mix(in oklch, var(--violet) 30%, transparent)' }}
-              onClick={() => setPromptDraft(promptDraft === null ? loc.prompt : null)}
-              disabled={generating || promptRegenLoading}
-            >
-              {promptDraft === null ? <><Icon name="edit" size={9} />편집</> : '취소'}
-            </button>
-          </div>
-
-          {promptDraft === null ? (
-            <div style={{ padding: '10px 14px', fontSize: 11, lineHeight: 1.65, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{loc.prompt}</div>
-          ) : (
-            <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <textarea
-                value={promptDraft}
-                onChange={e => setPromptDraft(e.target.value)}
-                rows={5}
-                autoFocus
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  background: 'color-mix(in oklch, var(--violet) 4%, var(--surface))',
-                  border: '1px solid color-mix(in oklch, var(--violet) 25%, transparent)',
-                  borderRadius: 6, color: 'var(--text)', fontSize: 11,
-                  fontFamily: 'var(--font-mono)', padding: '8px 10px',
-                  resize: 'vertical', lineHeight: 1.65, outline: 'none',
-                }}
-              />
-              <button
-                className="btn sm primary"
-                style={{ alignSelf: 'flex-end', background: 'var(--violet)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 11 }}
-                disabled={promptRegenLoading || !promptDraft.trim()}
-                onClick={async () => {
-                  if (!promptDraft.trim()) return;
-                  setPromptRegenLoading(true);
-                  try {
-                    // promptEn을 두 번째 인자로 전달 — handleGenerateImage에서 API 호출 + 폴링
-                    await onGenerateImage('', promptDraft.trim(), useRag);
-                    setPromptDraft(null);
-                  } catch (e) { toast.error('재생성 실패: ' + e.message); }
-                  finally { setPromptRegenLoading(false); }
-                }}
-              >
-                {promptRegenLoading
-                  ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} />재생성 중...</>
-                  : <><Icon name="sparkles" size={10} />이 프롬프트로 재생성</>}
-              </button>
-            </div>
-          )}
+        <div style={{ background: 'color-mix(in oklch, var(--violet) 6%, var(--surface))', border: '1px solid color-mix(in oklch, var(--violet) 20%, transparent)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ ...LBL, color: 'var(--violet)', marginBottom: 6 }}>GENERATED PROMPT</div>
+          <div style={{ fontSize: 11, lineHeight: 1.65, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{loc.prompt}</div>
         </div>
       )}
     </div>
@@ -353,7 +208,6 @@ const LocationDetail = ({ loc, pid, generating, onGenerateImage, onEditImage, on
 
 /* ── 메인 ── */
 export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
-  const toast = useToast();
   const [locations,    setLocations]    = React.useState([]);
   const [loading, setLoading]           = React.useState(true);
   const [selected, setSelected]         = React.useState(null);
@@ -362,27 +216,6 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
   const [descLoading, setDescLoading]   = React.useState(null); // loc_key
   const [llmLoading, setLlmLoading]     = React.useState(false);
   const [showAddForm, setShowAddForm]   = React.useState(false);
-  const [bustMap, setBustMap]           = React.useState({}); // loc_key → timestamp
-
-  const bustUrl = (url, locKey) => {
-    if (!url) return url;
-    const t = bustMap[locKey] || '';
-    if (!t) return url;
-    return url + (url.includes('?') ? `&v=${t}` : `?v=${t}`);
-  };
-
-  // 연결 끊김 감지 — 이미지 생성 중일 때만 블로킹 모달 표시
-  const [offline, setOffline] = React.useState(() => !navigator.onLine);
-  React.useEffect(() => {
-    const on  = () => setOffline(false);
-    const off = () => setOffline(true);
-    window.addEventListener('online',  on);
-    window.addEventListener('offline', off);
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
-  }, []);
-  const isGeneratingAny = !!generatingKey ||
-    locations.some(l => l.image_status === 'generating');
-  const blockNetwork = offline && isGeneratingAny;
 
   const pid = project?.id;
 
@@ -401,18 +234,16 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
   React.useEffect(() => { load(); }, [load]);
 
   /* ── 이미지 생성 ── */
-  const handleGenerateImage = async (loc, extraPrompt = '', promptEn = '', useRag = true) => {  // promptEn: 직접 편집한 프롬프트 전체 문자열
+  const handleGenerateImage = async (loc, extraPrompt = '') => {
     const key = loc.loc_key;
     setGeneratingKey(key);
     try {
       await api.post(`/api/projects/${pid}/locations/${key}/generate-image`, {
         model: 'gpt-image-1',
-        use_rag: useRag,
-        ...(promptEn.trim() ? { prompt_en: promptEn.trim() } : { extra_prompt: extraPrompt.trim() }),
+        extra_prompt: extraPrompt.trim(),
       });
-      // 폴링 — generating 확인 후 done이 될 때까지 대기
+      // 폴링 — image_status가 done으로 바뀌면 반영
       let attempts = 0;
-      let seenGenerating = false;
       await new Promise(resolve => {
         const poll = setInterval(async () => {
           attempts++;
@@ -422,51 +253,15 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
             const updated = list.find(l => l.loc_key === key);
             setLocations(list);
             setSelected(s => s?.loc_key === key ? (list.find(l => l.loc_key === key) || s) : s);
-            const status = updated?.image_status;
-            if (status === 'generating') seenGenerating = true;
-            // generating을 한 번이라도 본 뒤에 done/failed이면 완료
-            if (seenGenerating && (status === 'done' || status === 'failed')) {
-              if (status === 'done') setBustMap(prev => ({ ...prev, [key]: Date.now() }));
-              clearInterval(poll); resolve();
+            const isDone = updated?.image_status === 'done';
+            if ((isDone && attempts >= 2) || attempts >= 60) {
+              clearInterval(poll);
+              resolve();
             }
-            // 타임아웃 (2분)
-            if (attempts >= 60) { clearInterval(poll); resolve(); }
           } catch { /* 무시 */ }
         }, 2000);
       });
-    } catch (e) { toast.error('이미지 생성 실패: ' + e.message); }
-    finally { setGeneratingKey(null); }
-  };
-
-  /* ── 이미지 편집 (기존 이미지 ref로 사용) ── */
-  const handleEditImage = async (loc, editPrompt) => {
-    const key = loc.loc_key;
-    setGeneratingKey(key);
-    try {
-      await api.post(`/api/projects/${pid}/locations/${key}/edit-image`, {
-        extra_prompt: editPrompt.trim(),
-      });
-      let attempts = 0, seenGenerating = false;
-      await new Promise(resolve => {
-        const poll = setInterval(async () => {
-          attempts++;
-          try {
-            const data = await api.get(`/api/projects/${pid}/locations`);
-            const list = data.locations || [];
-            const updated = list.find(l => l.loc_key === key);
-            setLocations(list);
-            setSelected(s => s?.loc_key === key ? (list.find(l => l.loc_key === key) || s) : s);
-            const status = updated?.image_status;
-            if (status === 'generating') seenGenerating = true;
-            if (seenGenerating && (status === 'done' || status === 'failed')) {
-              if (status === 'done') setBustMap(prev => ({ ...prev, [key]: Date.now() }));
-              clearInterval(poll); resolve();
-            }
-            if (attempts >= 60) { clearInterval(poll); resolve(); }
-          } catch { /* 무시 */ }
-        }, 2000);
-      });
-    } catch (e) { toast.error('이미지 편집 실패: ' + e.message); }
+    } catch (e) { alert('이미지 생성 실패: ' + e.message); }
     finally { setGeneratingKey(null); }
   };
 
@@ -482,8 +277,7 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
       const updated = res.location;
       setLocations(prev => prev.map(l => l.loc_key === key ? { ...l, ...updated } : l));
       setSelected(s => s?.loc_key === key ? { ...s, ...updated } : s);
-      toast.success('AI 설명이 업데이트됐습니다');
-    } catch (e) { toast.error('AI 생성 실패: ' + e.message); }
+    } catch (e) { alert('AI 생성 실패: ' + e.message); }
     finally { setDescLoading(null); }
   };
 
@@ -496,8 +290,7 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
       setLocations(prev => [...prev, newLoc]);
       setSelected(newLoc);
       setShowAddForm(false);
-      toast.success(`"${newLoc.name_ko}" 배경이 추가됐습니다`);
-    } catch (e) { toast.error('배경 생성 실패: ' + e.message); }
+    } catch (e) { alert('배경 생성 실패: ' + e.message); }
     finally { setLlmLoading(false); }
   };
 
@@ -511,8 +304,7 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
         setSelected(s => s?.loc_key === loc.loc_key ? next[0] || null : s);
         return next;
       });
-      toast.success('배경이 삭제됐습니다');
-    } catch (e) { toast.error('삭제 실패: ' + e.message); }
+    } catch (e) { alert('삭제 실패: ' + e.message); }
   };
 
   if (loading) return (
@@ -524,7 +316,6 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
 
   return (
     <>
-    <NetworkBlockModal visible={blockNetwork} message="잠깐만 기다려주세요" />
     <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', height: '100%', overflow: 'hidden' }}>
 
       {/* ── 왼쪽: 배경 목록 ── */}
@@ -552,16 +343,13 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
               </button>
             </div>
           )}
-          {locations.map(loc => {
-            const locWithBust = bustMap[loc.loc_key] ? { ...loc, _bust: bustMap[loc.loc_key] } : loc;
-            return (
-              <LocationCard key={loc.loc_key} loc={locWithBust} selected={!showAddForm && selected?.loc_key === loc.loc_key}
-                onClick={() => { setSelected(locWithBust); setShowAddForm(false); }}
-                onDelete={() => handleDelete(loc)}
-                pid={pid}
-              />
-            );
-          })}
+          {locations.map(loc => (
+            <LocationCard key={loc.loc_key} loc={loc} selected={!showAddForm && selected?.loc_key === loc.loc_key}
+              onClick={() => { setSelected(loc); setShowAddForm(false); }}
+              onDelete={() => handleDelete(loc)}
+              pid={pid}
+            />
+          ))}
         </div>
       </div>
 
@@ -592,11 +380,10 @@ export const BackgroundView = ({ project, short, onShortUpdate, setView }) => {
               </div>
             ) : selected ? (
               <LocationDetail
-                loc={bustMap[selected.loc_key] ? { ...selected, _bust: bustMap[selected.loc_key] } : selected}
+                loc={selected}
                 pid={pid}
                 generating={generatingKey === selected.loc_key}
-                onGenerateImage={(extraPrompt, promptEn, useRag) => handleGenerateImage(selected, extraPrompt, promptEn, useRag)}
-                onEditImage={(editPrompt) => handleEditImage(selected, editPrompt)}
+                onGenerateImage={(extraPrompt) => handleGenerateImage(selected, extraPrompt)}
                 onLightbox={setLightboxSrc}
                 onRegenDesc={() => handleRegenDesc(selected)}
                 descLoading={descLoading === selected.loc_key}

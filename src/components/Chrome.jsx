@@ -14,9 +14,7 @@ export function LoginModal({ open, onClose, onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const result = await signInWithGoogle();
-      console.log('[auth] signInWithGoogle result:', result);
-      const { token, user } = result;
+      const { token, user } = await signInWithGoogle();
       saveAuth(token, user);
       onLogin(user);
       onClose();
@@ -98,7 +96,7 @@ export const Topbar = ({ view, crumbs, onHome, user, onLoginClick }) => {
   return (
     <div className="topbar">
       <div className="brand" onClick={onHome} style={{ cursor: 'pointer' }}>
-        <img src="/logo.png" alt="STEP D" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'contain' }} />
+        <img src="/src/로고_단일_사각.png" alt="STEP D" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'contain' }} />
         <div className="brand-name">STEP D<em>beta</em></div>
       </div>
       <div className="crumbs">
@@ -145,27 +143,8 @@ export const Sidebar = ({ view, setView, activeProject, activeShort, onGoHome, u
   ];
 
   const stage = activeShort?.stage;
-  const STAGE_ORDER = ['scenario', 'cast', 'scene_image', 'scene_video', 'audio', 'done'];
+  const STAGE_ORDER = ['scenario', 'cast', 'scene_image', 'scene_video', 'done'];
   const stageIdx = STAGE_ORDER.indexOf(stage);
-
-  const creditValue = 840;
-  const creditMax = 1000;
-  const creditPct = Math.max(0, Math.min(100, (creditValue / creditMax) * 100));
-  const CreditBar = () => (
-    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-2, rgba(255,255,255,0.75))' }}>
-        <Icon name="zap" size={14} className="ico" />
-        <span>크레딧</span>
-        <span style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-          <span style={{ color: 'var(--mint)', fontWeight: 600 }}>{creditValue.toLocaleString()}</span>
-          <span style={{ color: 'var(--text-4, rgba(255,255,255,0.45))' }}> / {creditMax.toLocaleString()}</span>
-        </span>
-      </div>
-      <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-        <div style={{ width: `${creditPct}%`, height: '100%', background: 'var(--mint)', borderRadius: 999, transition: 'width 0.3s' }} />
-      </div>
-    </div>
-  );
 
   const shortItems = activeShort ? [
     { id: 'canvas',      icon: 'split',    label: '워크플로우',     step: null,          sub: false },
@@ -175,9 +154,6 @@ export const Sidebar = ({ view, setView, activeProject, activeShort, onGoHome, u
     { id: 'imagechat',   icon: 'sparkles', label: 'AI 이미지 생성', step: null,          sub: true  },
     { id: 'scene-image', icon: 'image',    label: '③ 씬 이미지',   step: 'scene_image', sub: false },
     { id: 'render',      icon: 'film',     label: '④ 씬 영상',     step: 'scene_video', sub: false },
-    { id: 'render',      icon: 'mic',      label: '나레이션 TTS',   step: 'audio',       sub: true  },
-    { id: 'editor',      icon: 'edit',     label: '영상 편집기',    step: null,          sub: true  },
-    { id: 'thumbnail',   icon: 'image',    label: '⑤ 썸네일',      step: null,          sub: false },
     { id: 'export',      icon: 'download', label: '합성·내보내기',  step: null,          sub: false },
   ] : [];
 
@@ -196,7 +172,7 @@ export const Sidebar = ({ view, setView, activeProject, activeShort, onGoHome, u
 
           {user && (
             <div className="side-section" style={{ marginTop: 'auto' }}>
-              <CreditBar />
+              <div className="side-item"><Icon name="zap" size={16} className="ico" /><span>크레딧 <span style={{ color: 'var(--mint)', marginLeft: 4 }}>840</span></span></div>
             </div>
           )}
         </>
@@ -243,29 +219,9 @@ export const Sidebar = ({ view, setView, activeProject, activeShort, onGoHome, u
           </div>
           {user && (
             <div className="side-section" style={{ marginTop: 'auto' }}>
-              <CreditBar />
+              <div className="side-item"><Icon name="zap" size={16} className="ico" /><span>크레딧 <span style={{ color: 'var(--mint)', marginLeft: 4 }}>840</span></span></div>
             </div>
           )}
-        </>
-      )}
-
-      {/* 어드민 — admin role만 표시 */}
-      {user?.role === 'admin' && (
-        <>
-          <div
-            className={'side-item ' + (view === 'seeds' ? 'active' : '')}
-            onClick={() => setView('seeds')}
-            style={{ borderTop: '1px solid var(--border)', margin: 0, borderRadius: 0, padding: '10px 14px' }}
-          >
-            <Icon name="hash" size={16} className="ico" /><span>시드 라이브러리</span>
-          </div>
-          <div
-            className={'side-item ' + (view === 'admin' ? 'active' : '')}
-            onClick={() => setView('admin')}
-            style={{ margin: 0, borderRadius: 0, padding: '10px 14px' }}
-          >
-            <Icon name="sparkles" size={16} className="ico" /><span>어드민 · 점수 태깅</span>
-          </div>
         </>
       )}
 

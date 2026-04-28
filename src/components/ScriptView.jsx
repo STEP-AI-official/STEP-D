@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from './Icons';
-import { api, apiBase } from '../api';
+import { api } from '../api';
 
 /* ══════════════════════════════════════════════════════════════
    인라인 편집 필드
@@ -440,9 +440,6 @@ const newSceneTemplate = (episode_key = 'ep_01') => ({
   location_key: '', characters_in_scene: [], _isNew: true,
 });
 
-// 컴포넌트 unmount 후에도 유지 — 탭 전환 시 SSE 재연결 방지
-const _sseConnected = new Set();
-
 /* ══════════════════════════════════════════════════════════════
    ScriptView 메인
 ══════════════════════════════════════════════════════════════ */
@@ -456,7 +453,7 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   const selectedEpisodeKeyRef = React.useRef(null);
   React.useEffect(() => { selectedEpisodeKeyRef.current = selectedEpisodeKey; }, [selectedEpisodeKey]);
   const [selectedScene, setSelectedScene] = React.useState(null);
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [approving, setApproving] = React.useState(false);
   const [locked, setLocked] = React.useState(false);
@@ -465,7 +462,6 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   const [polishing, setPolishing] = React.useState(false);
   /* 전체 스크롤 모드 vs 선택 모드 */
   const [scrollMode, setScrollMode] = React.useState(false);
-  const [sourcesOpen, setSourcesOpen] = React.useState(false);
   /* 스트리밍 타이머 */
   const [elapsed, setElapsed] = React.useState(0);
   const [charCount, setCharCount] = React.useState(0);
@@ -506,27 +502,17 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
     } finally { setLoading(false); }
   }, [pid, sid]);
 
-  // pid/sid가 바뀔 때만 상태 초기화 — 탭 나갔다 돌아올 때 기존 데이터 보존
-  const prevShortRef = React.useRef(null);
-  React.useEffect(() => {
-    const sidChanged = prevShortRef.current !== sid;
-    if (sidChanged) {
-      prevShortRef.current = sid;
-      setScreenplay(null); setScenes([]); setEpisodes([]);
-      setLoading(true);
-    }
-    // 탭 복귀 시: 데이터가 이미 있으면 loading=true로 만들지 않고 백그라운드 갱신
-    loadScenario();
-  }, [loadScenario]);
+  React.useEffect(() => { setLoading(true); setScreenplay(null); setScenes([]); setEpisodes([]); loadScenario(); }, [loadScenario]);
 
-  // SSE 스트리밍 — generating 진입 시 한 번만 연결, 탭 전환 후 재방문해도 재연결 안 함
+  // SSE 스트리밍 — generating 진입 시 한 번만 연결, status 변경 시 재연결 방지
+  const sseActiveRef = React.useRef(false);
   React.useEffect(() => {
     if (!pid || !sid || !(shortStage === 'scenario' && shortStatus === 'generating')) return;
-    if (_sseConnected.has(sid)) return;  // 이미 연결 중 (unmount 후 복귀해도 스킵)
-    _sseConnected.add(sid);
+    if (sseActiveRef.current) return;  // 이미 연결 중이면 스킵
+    sseActiveRef.current = true;
     setStreaming(true); setStreamText('');
     const finish = () => {
-      _sseConnected.delete(sid);
+      sseActiveRef.current = false;
       setStreaming(false);
       api.get(`/api/projects/${pid}/shorts/${sid}`).then(u => { if (onShortUpdate) onShortUpdate(u); }).catch(() => {});
       // SSE로 이미 에피소드를 받았으면 loadScenario 생략 — 깜빡임 방지
@@ -538,9 +524,6 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
     };
     const es = api.sse(`/api/projects/${pid}/shorts/${sid}/scenario/stream`, obj => {
       if (obj.type === 'done' || obj.done) finish();
-      else if (obj.type === 'sources') {
-        setScreenplay(prev => ({ ...(prev || {}), sources: obj.sources || [] }));
-      }
       else if (obj.type === 'episode') {
         // 에피소드 하나 완성 — 즉시 렌더링
         const ep = obj.episode;
@@ -565,7 +548,7 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
       } else if (obj.type === 'error') { setStreaming(false); setError(obj.message || '오류'); }
     }, finish);
     const t = setTimeout(() => { es.close(); finish(); }, 180_000);
-    return () => { es.close(); clearTimeout(t); };
+    return () => { es.close(); clearTimeout(t); sseActiveRef.current = false; };
   }, [pid, sid, shortStage, shortStatus, loadScenario, onShortUpdate]);
 
   /* ── 씬 편집 ── */
@@ -652,8 +635,8 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
         : scenes)
     : (selectedScene ? [selectedScene] : []);
 
-  /* ── 로딩 — 데이터가 이미 있으면 스피너 없이 바로 렌더링 ── */
-  if (loading && !streaming && scenes.length === 0 && episodes.length === 0) return (
+  /* ── 로딩 ── */
+  if (loading && !streaming) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16 }}>
       <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.08)', borderTopColor: 'var(--mint)', animation: 'spin 1s linear infinite' }} />
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>시나리오 불러오는 중...</div>
@@ -750,14 +733,14 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
               </button>
             )}
             <a
-              href={`${apiBase}/projects/${pid}/shorts/${sid}/scenario/pdf`}
+              href={`/api/projects/${pid}/shorts/${sid}/scenario/pdf`}
               download
               className="btn sm ghost"
               style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
               <Icon name="download" size={10} />PDF
             </a>
             <a
-              href={`${apiBase}/projects/${pid}/shorts/${sid}/scenario/export-script`}
+              href={`/api/projects/${pid}/shorts/${sid}/scenario/export-script`}
               download
               className="btn sm ghost"
               style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -797,38 +780,6 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
 
         {/* ── 메인 콘텐츠 영역 ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '40px 56px 80px' }}>
-
-          {/* 팩트체크 참고 소스 */}
-          {(screenplay?.sources || []).length > 0 && (
-            <div style={{ marginBottom: 24, border: '1px solid rgba(124,111,247,0.25)', background: 'rgba(124,111,247,0.05)', borderRadius: 8, overflow: 'hidden' }}>
-              <button
-                onClick={() => setSourcesOpen(o => !o)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-              >
-                <Icon name="search" size={11} style={{ color: '#7c6ff7' }} />
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#7c6ff7', fontFamily: 'var(--font-mono)', flex: 1 }}>
-                  REFERENCES — {screenplay.sources.length} SOURCES
-                </span>
-                {!sourcesOpen && (
-                  <span style={{ fontSize: 10, color: 'rgba(124,111,247,0.6)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {screenplay.sources[0].title || screenplay.sources[0].url}
-                  </span>
-                )}
-                <Icon name={sourcesOpen ? 'chevron-up' : 'chevron-down'} size={11} style={{ color: '#7c6ff7', flexShrink: 0 }} />
-              </button>
-              {sourcesOpen && (
-                <ol style={{ margin: 0, paddingLeft: 22, paddingRight: 16, paddingBottom: 12, fontSize: 11, lineHeight: 1.7, color: 'rgba(255,255,255,0.6)' }}>
-                  {screenplay.sources.map((s, i) => (
-                    <li key={i} style={{ marginBottom: 2 }}>
-                      <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: '#7c6ff7', textDecoration: 'none' }} title={s.snippet || s.url}>
-                        {s.title || s.url}
-                      </a>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
-          )}
 
           {/* 에피소드 패널 (스크롤 모드: 에피소드 선택 시 타이틀 표시 후 전체 씬) */}
           {scrollMode && selectedEpisode && (

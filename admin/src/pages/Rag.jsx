@@ -185,20 +185,7 @@ export const Rag = () => {
   const loadStats = async () => {
     try {
       const data = await api.get('/rag/stats');
-      // by_category는 객체({cat: {chunks,sources,by_type}}) 또는 배열 모두 처리
-      const raw = data.by_category || data.detail || [];
-      if (Array.isArray(raw)) {
-        setStats(raw);
-      } else {
-        // 객체 → 배열 변환 (StatsCards가 배열을 기대)
-        setStats(Object.entries(raw).map(([category, s]) => ({
-          category,
-          sources: s.sources || 0,
-          chunks: s.chunks || 0,
-          avg_chunk_chars: s.avg_chunk_chars || 0,
-          by_type: s.by_type || {},
-        })));
-      }
+      setStats(data.by_category || []);
     } catch (e) { console.error(e); }
   };
 

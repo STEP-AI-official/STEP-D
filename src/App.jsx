@@ -9,20 +9,14 @@ import { CharactersView } from './components/CharactersView';
 import { BackgroundView } from './components/BackgroundView';
 import { SceneImageView } from './components/SceneImageView';
 import { RenderView } from './components/RenderView';
-import { ThumbnailView } from './components/ThumbnailView';
 import { ExportView } from './components/ExportView';
 import { NewProjectWizard } from './components/NewProjectWizard';
 import { TweaksPanel, TWEAK_DEFAULTS, applyTweaks } from './components/TweaksPanel';
 import { ProjectHomeView } from './components/ProjectHomeView';
 import { ImageGenChatView } from './components/ImageGenChatView';
-import { VideoEditor } from './components/VideoEditor';
-import { SeedLibraryView } from './components/SeedLibraryView';
-import { AdminView } from './components/AdminView';
 import { APP_DATA } from './data';
-import { api, apiBase } from './api';
+import { api } from './api';
 import { ProgressBanner } from './components/ProgressBanner';
-import { ToastProvider } from './components/Toast';
-import { OnboardingLogin } from './components/Onboarding';
 
 const App = () => {
   const [view, setView] = React.useState(() => {
@@ -52,7 +46,6 @@ const App = () => {
   }, [view]);
 
   const loadProjects = React.useCallback(async () => {
-    if (!loadAuth().token) { setProjectsLoading(false); return; }
     try {
       const data = await api.get('/api/projects');
       const list = Array.isArray(data) ? data : (data.projects || []);
@@ -62,34 +55,20 @@ const App = () => {
     } finally {
       setProjectsLoading(false);
     }
-  }, [user]);
+  }, []);
 
-  // 화면 복귀 시 short 최신 상태 DB에서 재조회 — generating이면 SSE가 자동 연결됨
-  React.useEffect(() => {
-    if (!activeProject || !activeShort) return;
-    api.get(`/api/projects/${activeProject.id}/shorts/${activeShort.id}`)
-      .then(u => setActiveShort(u)).catch(() => {});
-  }, [activeProject?.id, activeShort?.id]);
-
-  // SSE: activeShort 진행 상태 + 이미지 이벤트 실시간 수신
+  // SSE: activeShort 진행 상태 실시간 수신
   React.useEffect(() => {
     if (!activeProject || !activeShort) return;
     if (activeShort.status !== 'generating') return;
-    const token = localStorage.getItem('auth_token');
-    const sseUrl = `${apiBase}/projects/${activeProject.id}/shorts/${activeShort.id}/progress${token ? `?token=${token}` : ''}`;
-    const es = new EventSource(sseUrl);
+    const es = new EventSource(`/api/projects/${activeProject.id}/shorts/${activeShort.id}/progress`);
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'image') {
-          // 이미지 이벤트 — CharactersView/SceneImageView 등에서 처리하도록 커스텀 이벤트 dispatch
-          window.dispatchEvent(new CustomEvent('short:image_event', { detail: data }));
-          return;
-        }
-        // progress 이벤트
         setActiveShort(prev => prev ? { ...prev, ...data } : prev);
         if (data.status === 'done' || data.status === 'failed' || data.status === 'choosing') {
           es.close();
+          // short 최신 데이터 재조회
           api.get(`/api/projects/${activeProject.id}/shorts/${activeShort.id}`)
             .then(u => setActiveShort(u)).catch(() => {});
         }
@@ -103,7 +82,7 @@ const App = () => {
     loadProjects();
     const t = setInterval(loadProjects, 30000);
     return () => clearInterval(t);
-  }, [loadProjects, user]);
+  }, [loadProjects]);
 
   React.useEffect(() => {
     const handler = (e) => {
@@ -148,31 +127,15 @@ const App = () => {
 
   const crumbs = (() => {
     if (!activeProject) {
-      const labels = { dashboard: '대시보드', projects: '프로젝트', templates: '템플릿', assets: '에셋 라이브러리', seeds: '시드 라이브러리', admin: '어드민 · 점수 태깅' };
+      const labels = { dashboard: '대시보드', projects: '프로젝트', templates: '템플릿', assets: '에셋 라이브러리' };
       return [labels[view] || '대시보드'];
     }
-    const labels = { home: '프로젝트 홈', canvas: '워크플로우', script: '시나리오', characters: '등장인물', background: '배경 / 구도', imagechat: 'AI 이미지 생성', 'scene-image': '씬 이미지', render: '씬 영상', editor: '영상 편집기', thumbnail: '썸네일', export: '합성·내보내기' };
+    const labels = { home: '프로젝트 홈', canvas: '워크플로우', script: '시나리오', characters: '등장인물', background: '배경 / 구도', imagechat: 'AI 이미지 생성', 'scene-image': '씬 이미지', render: '씬 영상', export: '합성·내보내기' };
     return ['프로젝트', activeProject.title || activeProject.id, labels[view] || '홈'];
   })();
 
-  // 비로그인 상태 → 온보딩/로그인 화면만 표시
-  if (!user) {
-    return (
-      <ToastProvider>
-        <OnboardingLogin onLoginClick={() => setLoginOpen(true)} />
-        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { setUser(u); setLoginOpen(false); loadProjects(); }} />
-      </ToastProvider>
-    );
-  }
-
-  const isAdmin = user?.role === 'admin';
-
   let content;
-  if (view === 'admin' && isAdmin) {
-    content = <AdminView />;
-  } else if (view === 'seeds' && isAdmin) {
-    content = <SeedLibraryView />;
-  } else if (!activeProject || ['dashboard', 'projects', 'templates', 'assets'].includes(view)) {
+  if (!activeProject || ['dashboard', 'projects', 'templates', 'assets'].includes(view)) {
     content = <Dashboard projects={projects} loading={projectsLoading} onOpenProject={openProject} onNew={() => setShowWizard(true)} onRefresh={loadProjects}
       onDeleteProject={(pid) => { setProjects(prev => prev.filter(p => p.id !== pid)); }} />;
   } else if (view === 'home') {
@@ -190,29 +153,23 @@ const App = () => {
   } else if (view === 'scene-image') {
     content = <SceneImageView project={activeProject} short={activeShort} onShortUpdate={setActiveShort} setView={setView} />;
   } else if (view === 'render') {
-    content = <RenderView project={activeProject} short={activeShort} onShortUpdate={setActiveShort} setView={setView} />;
-  } else if (view === 'thumbnail') {
-    content = <ThumbnailView project={activeProject} short={activeShort} onShortUpdate={setActiveShort} />;
+    content = <RenderView project={activeProject} short={activeShort} onShortUpdate={setActiveShort} />;
   } else if (view === 'export') {
     content = <ExportView scenes={APP_DATA.scenes} />;
-  } else if (view === 'editor') {
-    content = <VideoEditor project={activeProject} short={activeShort} onBack={() => setView('render')} />;
   }
 
   return (
-    <ToastProvider>
     <div className="app-chrome" data-screen-label={view}>
       <Topbar view={view} crumbs={crumbs} onHome={goHome} user={user} onLoginClick={() => setLoginOpen(true)} />
       <Sidebar view={view} setView={setView} activeProject={activeProject} activeShort={activeShort} onGoHome={() => { setActiveProject(null); setActiveShort(null); setView('dashboard'); try { localStorage.removeItem('sf:project'); } catch {} }} user={user} setUser={setUser} onLoginClick={() => setLoginOpen(true)} />
       <div className="main fade-in" key={view} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
         {activeShort && <ProgressBanner short={activeShort} />}
-        <div style={{ flex: 1, overflow: view === 'editor' ? 'hidden' : 'auto' }}>{content}</div>
+        <div style={{ flex: 1, overflow: 'auto' }}>{content}</div>
       </div>
       {showWizard && <NewProjectWizard onCreated={handleProjectCreated} onClose={() => setShowWizard(false)} />}
       {tweaksOpen && <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} onClose={() => { setTweaksOpen(false); window.parent.postMessage({ type: '__deactivate_edit_mode' }, '*'); }} />}
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { setUser(u); setLoginOpen(false); loadProjects(); }} />
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { saveAuth(null, u); window.location.reload(); }} />
     </div>
-    </ToastProvider>
   );
 };
 

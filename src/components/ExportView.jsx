@@ -1,0 +1,83 @@
+import React from 'react';
+import { Icon } from './Icons';
+
+export const ExportView = ({ scenes }) => {
+  const [format, setFormat] = React.useState('mp4');
+  const [aspect, setAspect] = React.useState('9:16');
+  const [quality, setQuality] = React.useState('1080p');
+  const [captions, setCaptions] = React.useState(true);
+  const [bgm, setBgm] = React.useState(true);
+  const [composing, setComposing] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+  const totalDuration = (scenes || []).reduce((a, s) => a + (s.duration || 6), 0);
+
+  return (
+    <div style={{ padding: '32px 40px', height: '100%', overflowY: 'auto' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>마지막 단계</div>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>합성하고 내보내기</h1>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, marginTop: 28 }}>
+          <div>
+            <div className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="img-ph rose" style={{ aspectRatio: '16/9', maxHeight: 540, margin: '0 auto', width: '100%', borderRadius: 8 }}>
+                <span className="ph-label">최종 합성 · {scenes?.length || 0}씬</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-3)', justifyContent: 'center' }}>
+                <span><Icon name="clock" size={11} style={{ verticalAlign: -1 }} /> {totalDuration.toFixed(1)}초</span>
+                <span><Icon name="film" size={11} style={{ verticalAlign: -1 }} /> {scenes?.length || 0}씬</span>
+                <span><Icon name="cube" size={11} style={{ verticalAlign: -1 }} /> {aspect} · {quality}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[
+              { label: '포맷', options: ['mp4', 'mov', 'webm'], value: format, set: setFormat, display: v => v.toUpperCase() },
+              { label: '화면비', options: ['9:16', '1:1', '16:9'], value: aspect, set: setAspect, display: v => v },
+              { label: '화질', options: ['720p', '1080p', '4K'], value: quality, set: setQuality, display: v => v },
+            ].map(row => (
+              <div key={row.label}>
+                <div style={{ fontSize: 11, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{row.label}</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {row.options.map(o => <button key={o} className={'btn sm ' + (row.value === o ? 'primary' : '')} onClick={() => row.set(o)} style={{ flex: 1 }}>{row.display(o)}</button>)}
+                </div>
+              </div>
+            ))}
+
+            <div className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { k: 'captions', label: '자동 자막', on: captions, toggle: () => setCaptions(c => !c) },
+                { k: 'bgm', label: 'BGM (감성 피아노)', on: bgm, toggle: () => setBgm(b => !b) },
+                { k: 'watermark', label: '워터마크 제거', on: false, locked: true },
+              ].map(row => (
+                <div key={row.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontSize: 13, flex: 1 }}>{row.label}</div>
+                  {row.locked ? <span className="chip orange"><Icon name="lock" size={10} />Pro</span> : (
+                    <button onClick={row.toggle} style={{ width: 34, height: 18, borderRadius: 12, background: row.on ? 'var(--mint)' : 'var(--surface-3)', position: 'relative', cursor: 'pointer', transition: 'background 0.15s' }}>
+                      <div style={{ position: 'absolute', top: 2, left: row.on ? 18 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {done ? (
+              <div className="panel" style={{ padding: 14, background: 'color-mix(in oklch, var(--mint) 8%, var(--surface))', borderColor: 'var(--mint-soft)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--mint)', marginBottom: 6 }}><Icon name="check" size={14} />합성 완료</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn sm primary" style={{ flex: 1 }}><Icon name="download" size={12} />다운로드</button>
+                  <button className="btn sm" style={{ flex: 1 }}><Icon name="play" size={11} />미리보기</button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn primary" style={{ padding: 12, fontSize: 14, justifyContent: 'center' }} onClick={() => { setComposing(true); setTimeout(() => { setComposing(false); setDone(true); }, 3000); }} disabled={composing}>
+                {composing ? <><span className="spinner" style={{ width: 14, height: 14 }} /><span>합성 중...</span></> : <><Icon name="sparkles" size={14} /><span>합성 시작</span></>}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
