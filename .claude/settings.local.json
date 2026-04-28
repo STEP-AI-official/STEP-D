@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/STEPAI05/shorts-mvp/web/**)",
+      "Read(//c/Users/STEPAI05/shorts-mvp//**)"
+    ]
+  }
+}
