@@ -96,7 +96,7 @@ export const Topbar = ({ view, crumbs, onHome, user, onLoginClick }) => {
   return (
     <div className="topbar">
       <div className="brand" onClick={onHome} style={{ cursor: 'pointer' }}>
-        <img src="/src/로고_단일_사각.png" alt="STEP D" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'contain' }} />
+        <img src="/logo.png" alt="STEP D" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'contain' }} />
         <div className="brand-name">STEP D<em>beta</em></div>
       </div>
       <div className="crumbs">

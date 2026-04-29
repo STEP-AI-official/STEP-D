@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey:            'AIzaSyC-lvyK-PF30dXXCILbUpHzjqOAB-OtnQE',
-  authDomain:        'step-d.firebaseapp.com',
+  authDomain:        'stepd.co.kr',
   projectId:         'step-d',
   storageBucket:     'step-d.firebasestorage.app',
   messagingSenderId: '872105344568',
