@@ -1,7 +1,9 @@
 import { signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth'
 import { auth, googleProvider } from './firebase'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8766'
+const API_BASE = import.meta.env.DEV
+  ? ''  // 개발: Vite 프록시 사용 (/auth/firebase → 프록시 → 백엔드)
+  : (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8766')
 
 export async function signInWithGoogle() {
   const result  = await signInWithPopup(auth, googleProvider)

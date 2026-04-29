@@ -34,8 +34,13 @@ const useChatWS = (pid) => {
 
   const connect = React.useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/api/projects/${pid}/preproduction/chat/ws`);
+    const apiBase = import.meta.env.VITE_API_BASE_URL ?? '';
+    const wsBase = apiBase
+      ? apiBase.replace(/^http/, 'ws')
+      : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+    const token = localStorage.getItem('auth_token');
+    const qs = token ? `?token=${token}` : '';
+    const ws = new WebSocket(`${wsBase}/api/projects/${pid}/preproduction/chat/ws${qs}`);
     ws.onmessage = (e) => { try { listenerRef.current?.(JSON.parse(e.data)); } catch {} };
     ws.onerror = () => {};
     wsRef.current = ws;

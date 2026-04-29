@@ -1,5 +1,8 @@
-/** 기본 HTTP 클라이언트 — Vite proxy: /api → http://localhost:8766 */
-const BASE = '/api';
+// 개발: Vite 프록시를 통해 /api 상대경로 사용 (CORS 없음)
+// 프로덕션: VITE_API_BASE_URL 절대 URL로 직접 요청 (백엔드 CORS 필요)
+const BASE = import.meta.env.DEV
+  ? '/api'
+  : `${import.meta.env.VITE_API_BASE_URL ?? ''}/api`;
 const norm = (path) => BASE + path.replace(/^\/api/, '');
 
 const authHeaders = () => {
@@ -67,4 +70,5 @@ export const http = {
   mediaUrl(projectId, filePath) {
     return `${BASE}/media/${projectId}/${filePath}`;
   },
+
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Topbar, Sidebar } from './components/Chrome';
-import { loadAuth, saveAuth, signInWithGoogle } from './lib/auth';
+import { loadAuth } from './lib/auth';
 import { LoginModal } from './components/Chrome';
 import { Dashboard } from './components/Dashboard';
 import { CanvasView } from './components/CanvasView';
@@ -164,19 +164,25 @@ const App = () => {
     return (
       <>
         <OnboardingLogin onLoginClick={() => setLoginOpen(true)} />
-        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { saveAuth(null, u); window.location.reload(); }} />
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { window.location.reload(); }} />
       </>
     );
   }
 
-  // 로그인 후 프로젝트 0개 → 온보딩
+  // 로그인 후 프로젝트 0개 → 온보딩 (Topbar/Sidebar 포함해 로그아웃 가능)
   if (!projectsLoading && projects.length === 0 && !activeProject) {
     return (
-      <>
-        <Onboarding onNew={() => setShowWizard(true)} />
+      <div className="app-chrome" data-screen-label="onboarding">
+        <Topbar view="dashboard" crumbs={['대시보드']} onHome={goHome} user={user} onLoginClick={() => setLoginOpen(true)} />
+        <Sidebar view="dashboard" setView={setView} activeProject={null} activeShort={null} onGoHome={goHome} user={user} setUser={setUser} onLoginClick={() => setLoginOpen(true)} />
+        <div className="main" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Onboarding onNew={() => setShowWizard(true)} />
+          </div>
+        </div>
         {showWizard && <NewProjectWizard onCreated={handleProjectCreated} onClose={() => setShowWizard(false)} />}
-        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { saveAuth(null, u); window.location.reload(); }} />
-      </>
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { window.location.reload(); }} />
+      </div>
     );
   }
 
@@ -190,7 +196,7 @@ const App = () => {
       </div>
       {showWizard && <NewProjectWizard onCreated={handleProjectCreated} onClose={() => setShowWizard(false)} />}
       {tweaksOpen && <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} onClose={() => { setTweaksOpen(false); window.parent.postMessage({ type: '__deactivate_edit_mode' }, '*'); }} />}
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { saveAuth(null, u); window.location.reload(); }} />
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { window.location.reload(); }} />
     </div>
   );
 };
