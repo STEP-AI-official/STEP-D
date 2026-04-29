@@ -312,13 +312,13 @@ const ScenePreview = ({ scene, cut, sceneCuts, selectedCutKey, onSelectCut,
 
   const imgUrl = resolveUrl(cut?.image_path);
 
-  const regen = async () => {
+  const regen = async (useEdit = false) => {
     if (!cut) return;
     const cutKey = cut.cut_key;
     if (onClearCut) onClearCut(cutKey);
     setRegenLoading(true);
     try {
-      await api.post(`/api/projects/${pid}/shorts/${sid}/cuts/${cutKey}/generate`, { model:'gpt-image-1' });
+      await api.post(`/api/projects/${pid}/shorts/${sid}/cuts/${cutKey}/generate`, { model:'gpt-image-1', use_edit: useEdit });
       let attempts = 0;
       await new Promise(resolve => {
         const poll = setInterval(async () => {
@@ -350,12 +350,17 @@ const ScenePreview = ({ scene, cut, sceneCuts, selectedCutKey, onSelectCut,
       <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', background:'var(--bg-2)', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
         <span style={{ fontSize:12, fontWeight:700 }}>{scene.title_ko || scene.scene_key}</span>
         {cut && <StatusDot status={cut.status} />}
-        <button className="btn sm" style={{ marginLeft:'auto' }} onClick={regen} disabled={regenLoading || cut?.status === 'generating' || isGenerating}>
-          {regenLoading || cut?.status === 'generating'
-            ? <span className="spinner" style={{ width:10, height:10, borderWidth:1.5 }} />
-            : <Icon name="refresh" size={11} />}
-          {cut?.status === 'generating' ? '생성 중...' : '재생성'}
-        </button>
+        <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+          <button className="btn sm" onClick={() => regen(false)} disabled={regenLoading || cut?.status === 'generating' || isGenerating}
+            style={{ fontSize:11 }}>
+            {regenLoading ? <span className="spinner" style={{ width:10, height:10, borderWidth:1.5 }} /> : <Icon name="sparkles" size={11} />}
+            {cut?.status === 'generating' ? '생성 중...' : '생성'}
+          </button>
+          <button className="btn sm" onClick={() => regen(true)} disabled={regenLoading || cut?.status === 'generating' || isGenerating}
+            style={{ fontSize:11, color:'var(--mint)', borderColor:'color-mix(in oklch, var(--mint) 35%, var(--border))' }}>
+            <Icon name="edit" size={11} />편집
+          </button>
+        </div>
       </div>
 
       {/* 메인 이미지 */}
@@ -469,7 +474,7 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
     setSelectedChars(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
 
-  const generate = async () => {
+  const generate = async (useEdit = false) => {
     if (!scene) return;
     const cutsToGen = sceneCuts?.length ? sceneCuts : (cut ? [cut] : []);
     if (!cutsToGen.length) return;
@@ -488,6 +493,7 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
           model: 'gpt-image-1',
           char_keys: selectedChars,
           background_image_path: bgPath,
+          use_edit: useEdit,
         })
       ));
 
@@ -516,6 +522,8 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
       씬을 선택하세요
     </div>
   );
+
+  const isDisabled = generating || sceneCuts?.some(c => c.status === 'generating');
 
   // 씬 텍스트 (시나리오에서)
   const actionText  = scene.action_ko || '';
@@ -651,23 +659,39 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
 
       </div>
 
-      {/* 생성 버튼 (하단 고정) */}
-      <div style={{ marginTop:'auto', padding:'12px 16px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-        <button
-          className="btn primary"
-          style={{ width:'100%', justifyContent:'center', padding:'12px', fontSize:13, fontWeight:700,
-            background: generating || cut?.status === 'generating' ? 'var(--surface-2)' : 'var(--violet)',
-            border:'none', color: generating || cut?.status === 'generating' ? 'var(--text-3)' : '#fff',
-            borderRadius:8, letterSpacing:'0.04em' }}
-          onClick={generate}
-          disabled={generating || sceneCuts?.some(c => c.status === 'generating')}
-        >
-          {generating || sceneCuts?.some(c => c.status === 'generating')
-            ? <><span className="spinner" style={{ width:13, height:13, borderWidth:2 }} />생성 중...</>
-            : <><Icon name="sparkles" size={14} />씬 이미지 생성{sceneCuts?.length > 1 ? ` (${sceneCuts.length}컷)` : ''}</>}
-        </button>
+      {/* 생성 / 편집 버튼 (하단 고정) */}
+      <div style={{ marginTop:'auto', padding:'12px 16px', borderTop:'1px solid var(--border)', flexShrink:0, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ display:'flex', gap:8 }}>
+          {/* 생성 — 새로 만들기 */}
+          <button
+            className="btn primary"
+            style={{ flex:1, justifyContent:'center', padding:'11px 8px', fontSize:13, fontWeight:700,
+              background: isDisabled ? 'var(--surface-2)' : 'var(--violet)',
+              border:'none', color: isDisabled ? 'var(--text-3)' : '#fff',
+              borderRadius:8, letterSpacing:'0.04em' }}
+            onClick={() => generate(false)}
+            disabled={isDisabled}
+          >
+            {isDisabled
+              ? <><span className="spinner" style={{ width:13, height:13, borderWidth:2 }} />생성 중...</>
+              : <><Icon name="sparkles" size={14} />생성{sceneCuts?.length > 1 ? ` (${sceneCuts.length}컷)` : ''}</>}
+          </button>
+          {/* 편집 — 기존 이미지 참조해서 수정 */}
+          <button
+            className="btn"
+            style={{ flex:1, justifyContent:'center', padding:'11px 8px', fontSize:13, fontWeight:700,
+              background: isDisabled ? 'var(--surface-2)' : 'color-mix(in oklch, var(--mint) 15%, var(--surface-2))',
+              border: `1px solid ${isDisabled ? 'var(--border)' : 'color-mix(in oklch, var(--mint) 40%, var(--border))'}`,
+              color: isDisabled ? 'var(--text-3)' : 'var(--mint)',
+              borderRadius:8, letterSpacing:'0.04em' }}
+            onClick={() => generate(true)}
+            disabled={isDisabled}
+          >
+            <Icon name="edit" size={14} />편집
+          </button>
+        </div>
         {selectedChars.length === 0 && selectedLoc === null && (
-          <div style={{ fontSize:10, color:'var(--text-4)', textAlign:'center', marginTop:6 }}>
+          <div style={{ fontSize:10, color:'var(--text-4)', textAlign:'center' }}>
             등장인물 또는 배경을 선택하면 더 정확한 이미지가 생성됩니다
           </div>
         )}

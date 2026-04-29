@@ -29,6 +29,19 @@ const InjectStyle = () => {
   return null;
 };
 
+/* ── 반응형 훅 (모바일 ≤ 640px) ── */
+const useIsMobile = (breakpoint = 640) => {
+  const [isMobile, setIsMobile] = React.useState(
+    typeof window !== 'undefined' ? window.innerWidth <= breakpoint : false
+  );
+  React.useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= breakpoint);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, [breakpoint]);
+  return isMobile;
+};
+
 const STEPS = [
   { key: 'script', label: '시나리오', color: 'var(--violet)', soft: 'var(--violet-soft)', desc: 'AI가 다큐 대본을 자동 작성', icon: 'pen' },
   { key: 'cast',   label: '등장인물', color: 'var(--mint)',   soft: 'var(--mint-soft)',   desc: '얼굴·의상이 일관된 캐릭터',  icon: 'face' },
@@ -99,42 +112,58 @@ const Wordmark = ({ size = 20 }) => (
 );
 
 /* ── 상단 네비 ── */
-const TopBar = ({ onLogin, onNav, activePage = 'home' }) => (
-  <div style={{
-    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
-    height: 60, padding: '0 28px',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'linear-gradient(to bottom, color-mix(in oklch, var(--bg) 70%, transparent), transparent)',
-    backdropFilter: 'blur(8px)',
-  }}>
-    <div style={{ cursor: 'pointer' }} onClick={() => onNav('home')}>
-      <Wordmark size={15} />
+const TopBar = ({ onLogin, onNav, activePage = 'home' }) => {
+  const isMobile = useIsMobile();
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
+      height: 60, padding: isMobile ? '0 14px' : '0 28px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+      background: 'linear-gradient(to bottom, color-mix(in oklch, var(--bg) 70%, transparent), transparent)',
+      backdropFilter: 'blur(8px)',
+    }}>
+      <div style={{ cursor: 'pointer', minWidth: 0, flexShrink: 1 }} onClick={() => onNav('home')}>
+        <Wordmark size={isMobile ? 13 : 15} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 4, flexShrink: 0 }}>
+        {!isMobile && (
+          <>
+            {[{ key: 'home', label: '제품' }, { key: 'showcase', label: '쇼케이스' }].map(({ key, label }) => (
+              <a key={key} onClick={() => onNav(key)}
+                style={{
+                  fontSize: 13, padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
+                  textDecoration: 'none', transition: 'color 0.15s',
+                  color: activePage === key ? 'var(--text)' : 'var(--text-3)',
+                  fontWeight: activePage === key ? 700 : 400,
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                onMouseLeave={e => e.currentTarget.style.color = activePage === key ? 'var(--text)' : 'var(--text-3)'}
+              >{label}</a>
+            ))}
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 6px' }} />
+            <button onClick={onLogin} style={{
+              fontSize: 13, color: 'var(--text-2)', padding: '6px 14px', borderRadius: 8,
+              cursor: 'pointer', fontWeight: 600, background: 'none', border: 'none',
+            }}>로그인</button>
+          </>
+        )}
+        {isMobile && (
+          <a onClick={() => onNav(activePage === 'showcase' ? 'home' : 'showcase')}
+            style={{
+              fontSize: 12, padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
+              color: 'var(--text-2)', fontWeight: 600,
+            }}>{activePage === 'showcase' ? '제품' : '쇼케이스'}</a>
+        )}
+        <button onClick={onLogin} style={{
+          fontSize: isMobile ? 12 : 13, color: '#0a0a0f',
+          padding: isMobile ? '7px 12px' : '7px 14px', borderRadius: 8,
+          cursor: 'pointer', fontWeight: 700, background: 'var(--mint)', border: 'none',
+          whiteSpace: 'nowrap',
+        }}>{isMobile ? '시작하기' : '무료로 시작'}</button>
+      </div>
     </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      {[{ key: 'home', label: '제품' }, { key: 'showcase', label: '쇼케이스' }].map(({ key, label }) => (
-        <a key={key} onClick={() => onNav(key)}
-          style={{
-            fontSize: 13, padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
-            textDecoration: 'none', transition: 'color 0.15s',
-            color: activePage === key ? 'var(--text)' : 'var(--text-3)',
-            fontWeight: activePage === key ? 700 : 400,
-          }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-          onMouseLeave={e => e.currentTarget.style.color = activePage === key ? 'var(--text)' : 'var(--text-3)'}
-        >{label}</a>
-      ))}
-      <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 6px' }} />
-      <button onClick={onLogin} style={{
-        fontSize: 13, color: 'var(--text-2)', padding: '6px 14px', borderRadius: 8,
-        cursor: 'pointer', fontWeight: 600, background: 'none', border: 'none',
-      }}>로그인</button>
-      <button onClick={onLogin} style={{
-        fontSize: 13, color: '#0a0a0f', padding: '7px 14px', borderRadius: 8,
-        cursor: 'pointer', fontWeight: 700, background: 'var(--mint)', border: 'none',
-      }}>무료로 시작</button>
-    </div>
-  </div>
-);
+  );
+};
 
 /* ── 라이브 타이핑 훅 ── */
 const useTyping = (texts, { typeMs = 55, holdMs = 1800, eraseMs = 25 } = {}) => {
@@ -166,55 +195,84 @@ const useTyping = (texts, { typeMs = 55, holdMs = 1800, eraseMs = 25 } = {}) => 
 };
 
 /* ── 파이프라인 시각화 ── */
-const PipelineFlow = ({ active = 2 }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap', justifyContent: 'center' }}>
-    {STEPS.map((s, i) => {
-      const isActive = i <= active;
-      const isCurrent = i === active;
-      return (
-        <React.Fragment key={s.key}>
-          <div style={{
-            width: 140, padding: '14px 10px', borderRadius: 12,
-            background: isActive ? `color-mix(in oklch, ${s.color} 8%, var(--surface))` : 'var(--surface)',
-            border: `1px solid ${isCurrent ? s.color : isActive ? `color-mix(in oklch, ${s.color} 35%, var(--border))` : 'var(--border)'}`,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-            boxShadow: isCurrent ? `0 0 0 4px color-mix(in oklch, ${s.color} 18%, transparent)` : 'none',
-            transition: 'all 0.3s',
-          }}>
+const PipelineFlow = ({ active = 2 }) => {
+  const isMobile = useIsMobile();
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
+      alignItems: 'center', gap: 0,
+      flexWrap: isMobile ? 'nowrap' : 'wrap',
+      justifyContent: 'center',
+      width: '100%',
+    }}>
+      {STEPS.map((s, i) => {
+        const isActive = i <= active;
+        const isCurrent = i === active;
+        return (
+          <React.Fragment key={s.key}>
             <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: `color-mix(in oklch, ${s.color} ${isActive ? 22 : 10}%, var(--surface-2))`,
-              border: `1px solid color-mix(in oklch, ${s.color} ${isActive ? 50 : 25}%, var(--border))`,
-              display: 'grid', placeItems: 'center',
-              color: isActive ? s.color : 'var(--text-4)',
+              width: isMobile ? '100%' : 140,
+              maxWidth: isMobile ? 320 : undefined,
+              padding: isMobile ? '12px 14px' : '14px 10px',
+              borderRadius: 12,
+              background: isActive ? `color-mix(in oklch, ${s.color} 8%, var(--surface))` : 'var(--surface)',
+              border: `1px solid ${isCurrent ? s.color : isActive ? `color-mix(in oklch, ${s.color} 35%, var(--border))` : 'var(--border)'}`,
+              display: 'flex',
+              flexDirection: isMobile ? 'row' : 'column',
+              alignItems: 'center',
+              gap: isMobile ? 12 : 8,
+              boxShadow: isCurrent ? `0 0 0 4px color-mix(in oklch, ${s.color} 18%, transparent)` : 'none',
+              transition: 'all 0.3s',
             }}>
-              <Ico name={s.icon} size={18} />
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: `color-mix(in oklch, ${s.color} ${isActive ? 22 : 10}%, var(--surface-2))`,
+                border: `1px solid color-mix(in oklch, ${s.color} ${isActive ? 50 : 25}%, var(--border))`,
+                display: 'grid', placeItems: 'center',
+                color: isActive ? s.color : 'var(--text-4)',
+              }}>
+                <Ico name={s.icon} size={18} />
+              </div>
+              <div style={{
+                display: 'flex', flexDirection: 'column',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                gap: isMobile ? 2 : 6, flex: isMobile ? 1 : undefined, minWidth: 0,
+              }}>
+                <div style={{
+                  fontSize: 8.5, fontWeight: 700, fontFamily: 'monospace',
+                  color: isActive ? s.color : 'var(--text-4)', letterSpacing: '0.12em',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  {isCurrent && <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.color, animation: 'pulse-soft 1.4s ease infinite' }} />}
+                  STEP {String(i + 1).padStart(2, '0')}
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{s.label}</div>
+                <div style={{
+                  fontSize: 10.5, color: 'var(--text-4)',
+                  textAlign: isMobile ? 'left' : 'center', lineHeight: 1.5,
+                }}>{s.desc}</div>
+              </div>
             </div>
-            <div style={{
-              fontSize: 8.5, fontWeight: 700, fontFamily: 'monospace',
-              color: isActive ? s.color : 'var(--text-4)', letterSpacing: '0.12em',
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              {isCurrent && <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.color, animation: 'pulse-soft 1.4s ease infinite' }} />}
-              STEP {String(i + 1).padStart(2, '0')}
-            </div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{s.label}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-4)', textAlign: 'center', lineHeight: 1.5 }}>{s.desc}</div>
-          </div>
-          {i < STEPS.length - 1 && (
-            <div style={{
-              width: 18, display: 'grid', placeItems: 'center',
-              color: i < active ? STEPS[i].color : 'var(--border-strong)',
-              opacity: i < active ? 0.7 : 1,
-            }}>
-              <Ico name="arrow" size={14} />
-            </div>
-          )}
-        </React.Fragment>
-      );
-    })}
-  </div>
-);
+            {i < STEPS.length - 1 && (
+              <div style={{
+                width: isMobile ? 'auto' : 18,
+                height: isMobile ? 18 : 'auto',
+                display: 'grid', placeItems: 'center',
+                color: i < active ? STEPS[i].color : 'var(--border-strong)',
+                opacity: i < active ? 0.7 : 1,
+                transform: isMobile ? 'rotate(90deg)' : 'none',
+                margin: isMobile ? '4px 0' : 0,
+              }}>
+                <Ico name="arrow" size={14} />
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
 
 /* ── intro_3→2→1 슬라이드쇼 합성 데모 ── */
 const INTRO_SLIDES = [
@@ -224,99 +282,87 @@ const INTRO_SLIDES = [
 ];
 
 const IntroSlideshow = () => {
+  const isMobile = useIsMobile();
   const [idx, setIdx] = React.useState(0);
-  const [fading, setFading] = React.useState(false);
 
   React.useEffect(() => {
     const t = setInterval(() => {
-      setFading(true);
-      setTimeout(() => {
-        setIdx(i => (i + 1) % INTRO_SLIDES.length);
-        setFading(false);
-      }, 350);
+      setIdx(i => (i + 1) % INTRO_SLIDES.length);
     }, 2800);
     return () => clearInterval(t);
   }, []);
 
-  const slide = INTRO_SLIDES[idx];
   const isScene = idx === 2;
+
+  const fuseArrow = (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 5, flexShrink: 0,
+      transform: isMobile ? 'rotate(90deg)' : 'none',
+      margin: isMobile ? '4px 0' : 0,
+    }}>
+      <div style={{ fontSize: 8.5, fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.1em' }}>FUSE</div>
+      <svg width="56" height="20" viewBox="0 0 60 20" fill="none">
+        <defs>
+          <linearGradient id="fuseGrad2" x1="0" y1="0" x2="60" y2="0">
+            <stop offset="0%" stopColor="var(--mint)" stopOpacity="0.3"/>
+            <stop offset="50%" stopColor="var(--accent)" stopOpacity="1"/>
+            <stop offset="100%" stopColor="var(--violet)" stopOpacity="0.3"/>
+          </linearGradient>
+        </defs>
+        <path d="M2 10 L52 10 M46 4 L52 10 L46 16" stroke="url(#fuseGrad2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+      <div style={{ fontSize: 8.5, fontFamily: 'monospace', color: 'var(--text-4)', letterSpacing: '0.1em' }}>~5s</div>
+    </div>
+  );
+
+  const plusBadge = (
+    <div style={{
+      width: 34, height: 34, borderRadius: '50%',
+      background: 'var(--surface)', border: '1px solid var(--border-strong)',
+      display: 'grid', placeItems: 'center', color: 'var(--text-2)',
+      fontSize: 18, fontWeight: 300, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', flexShrink: 0,
+    }}>+</div>
+  );
 
   return (
     <div style={{
       width: '100%', maxWidth: 1100,
-      display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr',
-      alignItems: 'center', gap: 20,
-      padding: '32px 36px', borderRadius: 24,
+      display: isMobile ? 'flex' : 'grid',
+      flexDirection: isMobile ? 'column' : undefined,
+      gridTemplateColumns: isMobile ? undefined : '1fr auto 1fr auto 1fr',
+      alignItems: 'center',
+      gap: isMobile ? 10 : 20,
+      padding: isMobile ? '20px 16px' : '32px 36px',
+      borderRadius: 24,
       background: 'color-mix(in oklch, var(--surface) 45%, transparent)',
       border: '1px solid var(--border)',
       backdropFilter: 'blur(8px)',
       animation: 'fade-in-up 0.7s 0.3s ease both',
       position: 'relative',
     }}>
-
-      {/* 등장인물 슬롯 */}
-      <IntroImageSlot
-        src="/intro_3.png"
-        label="등장인물"
-        sub="CAST · AI 생성"
-        accent="var(--mint)"
-        badge="CHARACTER"
-        anim="drift-x 4s ease-in-out infinite"
-        dimmed={isScene}
-      />
-
-      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border-strong)', display: 'grid', placeItems: 'center', color: 'var(--text-2)', fontSize: 18, fontWeight: 300, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', flexShrink: 0 }}>+</div>
-
-      {/* 배경 슬롯 */}
-      <IntroImageSlot
-        src="/intro_2.png"
-        label="배경"
-        sub="LOCATION · AI 생성"
-        accent="var(--orange)"
-        badge="BACKGROUND"
-        anim="drift-x-r 4s ease-in-out infinite"
-        dimmed={isScene}
-      />
-
-      {/* FUSE 화살표 */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-        <div style={{ fontSize: 8.5, fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.1em' }}>FUSE</div>
-        <svg width="56" height="20" viewBox="0 0 60 20" fill="none">
-          <defs>
-            <linearGradient id="fuseGrad2" x1="0" y1="0" x2="60" y2="0">
-              <stop offset="0%" stopColor="var(--mint)" stopOpacity="0.3"/>
-              <stop offset="50%" stopColor="var(--accent)" stopOpacity="1"/>
-              <stop offset="100%" stopColor="var(--violet)" stopOpacity="0.3"/>
-            </linearGradient>
-          </defs>
-          <path d="M2 10 L52 10 M46 4 L52 10 L46 16" stroke="url(#fuseGrad2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <div style={{ fontSize: 8.5, fontFamily: 'monospace', color: 'var(--text-4)', letterSpacing: '0.1em' }}>~5s</div>
-      </div>
-
-      {/* 씬 결과 슬롯 — intro_1 고정 표시 */}
-      <IntroImageSlot
-        src="/intro_1.png"
-        label="씬 이미지"
-        sub="SCENE · 합성 완료"
-        accent="var(--violet)"
-        badge="SCENE"
-        anim="none"
-        highlight
-      />
+      <IntroImageSlot src="/intro_3.png" label="등장인물" sub="CAST · AI 생성" accent="var(--mint)" badge="CHARACTER"
+        anim={isMobile ? 'none' : 'drift-x 4s ease-in-out infinite'} dimmed={isScene} fullWidth={isMobile} />
+      {plusBadge}
+      <IntroImageSlot src="/intro_2.png" label="배경" sub="LOCATION · AI 생성" accent="var(--orange)" badge="BACKGROUND"
+        anim={isMobile ? 'none' : 'drift-x-r 4s ease-in-out infinite'} dimmed={isScene} fullWidth={isMobile} />
+      {fuseArrow}
+      <IntroImageSlot src="/intro_1.png" label="씬 이미지" sub="SCENE · 합성 완료" accent="var(--violet)" badge="SCENE"
+        anim="none" highlight fullWidth={isMobile} />
     </div>
   );
 };
 
-const IntroImageSlot = ({ src, label, sub, accent, badge, anim, dimmed, highlight }) => (
+const IntroImageSlot = ({ src, label, sub, accent, badge, anim, dimmed, highlight, fullWidth }) => (
   <div style={{
     position: 'relative', aspectRatio: '16/9', minHeight: 0,
+    width: fullWidth ? '100%' : undefined,
     borderRadius: 14, overflow: 'hidden',
     border: `1.5px solid color-mix(in oklch, ${accent} ${highlight ? 60 : 35}%, var(--border))`,
     boxShadow: highlight
       ? `0 0 0 3px color-mix(in oklch, ${accent} 20%, transparent), 0 20px 50px rgba(0,0,0,0.45)`
       : '0 14px 40px rgba(0,0,0,0.35)',
-    animation: anim !== 'none' ? anim : undefined,
+    animation: anim && anim !== 'none' ? anim : undefined,
     transition: 'opacity 0.35s',
     opacity: dimmed ? 0.55 : 1,
     flexShrink: 0,
@@ -640,6 +686,7 @@ const SHOWCASE_ITEMS = [
 ];
 
 const ShowcasePage = ({ onLogin, onNav }) => {
+  const isMobile = useIsMobile();
   const items = SHOWCASE_ITEMS;
 
   return (
@@ -661,10 +708,10 @@ const ShowcasePage = ({ onLogin, onNav }) => {
       <div style={{
         position: 'relative', zIndex: 1,
         maxWidth: 1200, margin: '0 auto',
-        padding: '100px 32px 64px',
+        padding: isMobile ? '90px 16px 48px' : '100px 32px 64px',
       }}>
         {/* 헤더 */}
-        <div style={{ textAlign: 'center', marginBottom: 48, animation: 'fade-in-up 0.5s ease both' }}>
+        <div style={{ textAlign: 'center', marginBottom: isMobile ? 32 : 48, animation: 'fade-in-up 0.5s ease both' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '5px 12px', borderRadius: 999, marginBottom: 20,
@@ -707,8 +754,8 @@ const ShowcasePage = ({ onLogin, onNav }) => {
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 16,
+            gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 240 : 320}px, 1fr))`,
+            gap: isMobile ? 12 : 16,
             animation: 'fade-in-up 0.6s 0.1s ease both',
           }}>
             {items.map(item => <ShowcaseCard key={item.id} item={item} />)}
@@ -746,6 +793,7 @@ const ShowcasePage = ({ onLogin, onNav }) => {
 
 /* ── 로그인 화면 (비로그인) ── */
 export const OnboardingLogin = ({ onLoginClick }) => {
+  const isMobile = useIsMobile();
   const typed = useTyping(SAMPLE_PROMPTS);
   const [hoveredChip, setHoveredChip] = React.useState(null);
   const [page, setPage] = React.useState('home'); // 'home' | 'showcase'
@@ -795,7 +843,7 @@ export const OnboardingLogin = ({ onLoginClick }) => {
       <div style={{
         position: 'relative', zIndex: 1,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '110px 24px 64px', maxWidth: 1100, margin: '0 auto',
+        padding: isMobile ? '92px 16px 48px' : '110px 24px 64px', maxWidth: 1100, margin: '0 auto',
       }}>
         {/* 배지 */}
         <div style={{
@@ -846,34 +894,48 @@ export const OnboardingLogin = ({ onLoginClick }) => {
             boxShadow: '0 30px 80px rgba(0,0,0,0.4), 0 0 0 6px color-mix(in oklch, var(--mint) 8%, transparent)',
             backdropFilter: 'blur(12px)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px 20px' }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-                background: 'color-mix(in oklch, var(--violet) 22%, var(--surface-2))',
-                border: '1px solid color-mix(in oklch, var(--violet) 40%, var(--border))',
-                color: 'var(--violet)', display: 'grid', placeItems: 'center',
-              }}>
-                <Ico name="sparkle" size={16} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0, paddingTop: 4 }}>
-                <div style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.14em', marginBottom: 6 }}>
-                  쇼츠 주제
+            <div style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'stretch' : 'flex-start',
+              gap: isMobile ? 12 : 14,
+              padding: isMobile ? '14px 14px' : '18px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                  background: 'color-mix(in oklch, var(--violet) 22%, var(--surface-2))',
+                  border: '1px solid color-mix(in oklch, var(--violet) 40%, var(--border))',
+                  color: 'var(--violet)', display: 'grid', placeItems: 'center',
+                }}>
+                  <Ico name="sparkle" size={16} />
                 </div>
-                <div style={{ fontSize: 18, color: 'var(--text)', minHeight: 28, lineHeight: 1.4, fontWeight: 500 }}>
-                  {typed}
-                  <span style={{
-                    display: 'inline-block', width: 2, height: 18, background: 'var(--mint)',
-                    verticalAlign: -3, marginLeft: 2, animation: 'blink-caret 1s step-end infinite',
-                  }} />
+                <div style={{ flex: 1, minWidth: 0, paddingTop: 4 }}>
+                  <div style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.14em', marginBottom: 6 }}>
+                    쇼츠 주제
+                  </div>
+                  <div style={{
+                    fontSize: isMobile ? 16 : 18,
+                    color: 'var(--text)', minHeight: 28, lineHeight: 1.4, fontWeight: 500,
+                    overflowWrap: 'break-word',
+                  }}>
+                    {typed}
+                    <span style={{
+                      display: 'inline-block', width: 2, height: 18, background: 'var(--mint)',
+                      verticalAlign: -3, marginLeft: 2, animation: 'blink-caret 1s step-end infinite',
+                    }} />
+                  </div>
                 </div>
               </div>
               <button onClick={onLoginClick} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 18px', borderRadius: 12, border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: isMobile ? '12px 18px' : '10px 18px',
+                borderRadius: 12, border: 'none',
                 background: 'var(--mint)', color: '#0a0a0f',
                 fontSize: 14, fontWeight: 800, cursor: 'pointer',
                 boxShadow: '0 6px 18px color-mix(in oklch, var(--mint) 35%, transparent)',
-                alignSelf: 'flex-end',
+                alignSelf: isMobile ? 'stretch' : 'flex-end',
+                width: isMobile ? '100%' : 'auto',
               }}>
                 만들기
                 <Ico name="arrow" size={14} stroke={2.4} />
@@ -882,20 +944,30 @@ export const OnboardingLogin = ({ onLoginClick }) => {
 
             {/* 옵션 바 */}
             <div style={{
-              borderTop: '1px solid var(--border)', padding: '10px 16px',
-              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              borderTop: '1px solid var(--border)',
+              padding: isMobile ? '10px 12px' : '10px 16px',
+              display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
               fontSize: 11, fontFamily: 'monospace', color: 'var(--text-4)',
             }}>
-              {['60초', '60초', '60초', '60초', '60초'].map((o, i) => (
+              {[
+                { label: '9:16',   active: true  },
+                { label: '60초',   active: true  },
+                { label: '한국어', active: true  },
+                { label: '자막',   active: true  },
+                { label: 'BGM',    active: false },
+              ].map((o, i) => (
                 <span key={i} style={{
                   padding: '4px 10px', borderRadius: 6,
-                  background: i < 4 ? 'color-mix(in oklch, var(--mint) 8%, var(--surface-2))' : 'transparent',
-                  border: `1px solid ${i < 4 ? 'color-mix(in oklch, var(--mint) 22%, var(--border))' : 'var(--border)'}`,
-                  color: i < 4 ? 'var(--mint)' : 'var(--text-3)',
+                  background: o.active ? 'color-mix(in oklch, var(--mint) 8%, var(--surface-2))' : 'transparent',
+                  border: `1px solid ${o.active ? 'color-mix(in oklch, var(--mint) 22%, var(--border))' : 'var(--border)'}`,
+                  color: o.active ? 'var(--mint)' : 'var(--text-3)',
                   fontWeight: 600, letterSpacing: '0.02em',
-                }}>{o}</span>
+                }}>{o.label}</span>
               ))}
-              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{
+                marginLeft: isMobile ? 0 : 'auto',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--mint)', animation: 'pulse-soft 1.5s ease infinite' }} />
                 예상 5분
               </span>
@@ -929,7 +1001,7 @@ export const OnboardingLogin = ({ onLoginClick }) => {
 
         {/* 파이프라인 */}
         <div style={{
-          width: '100%', maxWidth: 980, padding: 28, borderRadius: 20, marginTop: 40,
+          width: '100%', maxWidth: 980, padding: isMobile ? 18 : 28, borderRadius: 20, marginTop: isMobile ? 24 : 40,
           background: 'color-mix(in oklch, var(--surface) 50%, transparent)',
           border: '1px solid var(--border)',
           backdropFilter: 'blur(8px)',
@@ -950,13 +1022,14 @@ export const OnboardingLogin = ({ onLoginClick }) => {
         </div>
 
         {/* 로그인 CTA */}
-        <div style={{ marginTop: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <div style={{ marginTop: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: '100%', maxWidth: 400 }}>
           <button onClick={onLoginClick} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
             padding: '14px 36px', borderRadius: 12, border: 'none',
             background: 'linear-gradient(135deg, var(--violet), var(--mint))',
             color: '#0a0a0f', fontSize: 15, fontWeight: 800,
             cursor: 'pointer', letterSpacing: '-0.01em',
+            width: isMobile ? '100%' : 'auto',
             boxShadow: '0 8px 32px rgba(0,212,160,0.25)',
             transition: 'transform 0.15s, box-shadow 0.15s',
           }}
@@ -974,39 +1047,52 @@ export const OnboardingLogin = ({ onLoginClick }) => {
 
 /* ── 로그인된 신규 사용자 온보딩 (Dashboard에서 프로젝트 0개일 때) ── */
 export const Onboarding = ({ onNew }) => {
+  const isMobile = useIsMobile();
   const [hovered, setHovered] = React.useState(null);
 
   return (
     <div style={{
       height: '100%', overflowY: 'auto',
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: '48px 24px',
+      justifyContent: 'center',
+      padding: isMobile ? '32px 16px' : '48px 24px',
       background: 'var(--bg)',
       userSelect: 'none',
     }}>
       <InjectStyle />
 
-      {/* 배경 미세 그라디언트 */}
       <div style={{
         position: 'fixed', inset: 0, pointerEvents: 'none',
         background: `radial-gradient(700px 400px at 50% 0%, color-mix(in oklch, var(--violet) 12%, transparent), transparent 60%)`,
       }} />
 
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-        {/* 로고 */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <Wordmark size={18} />
-          <p style={{ fontSize: 15, color: 'var(--text-3)', margin: '16px 0 0', lineHeight: 1.6 }}>
-            주제 하나를 입력하면 시나리오부터 최종 영상까지<br />
-            AI가 자동으로 만들어 드립니다
+        <div style={{ textAlign: 'center', marginBottom: isMobile ? 32 : 48 }}>
+          <Wordmark size={isMobile ? 16 : 18} />
+          <p style={{
+            fontSize: isMobile ? 14 : 15,
+            color: 'var(--text-3)', margin: '16px 0 0', lineHeight: 1.6,
+            padding: isMobile ? '0 8px' : 0,
+          }}>
+            {isMobile ? (
+              '주제 하나를 입력하면 시나리오부터 최종 영상까지 AI가 자동으로 만들어 드립니다'
+            ) : (
+              <>
+                주제 하나를 입력하면 시나리오부터 최종 영상까지<br />
+                AI가 자동으로 만들어 드립니다
+              </>
+            )}
           </p>
         </div>
 
-        {/* 파이프라인 스텝 */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 0,
-          marginBottom: 48, flexWrap: 'wrap', justifyContent: 'center',
-          maxWidth: 860,
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: 'center', gap: 0,
+          marginBottom: isMobile ? 32 : 48,
+          flexWrap: isMobile ? 'nowrap' : 'wrap',
+          justifyContent: 'center',
+          maxWidth: 860, width: '100%',
         }}>
           {STEPS.map((step, i) => (
             <React.Fragment key={step.key}>
@@ -1014,16 +1100,23 @@ export const Onboarding = ({ onNew }) => {
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 10, padding: '20px 16px', borderRadius: 14,
+                  display: 'flex',
+                  flexDirection: isMobile ? 'row' : 'column',
+                  alignItems: 'center',
+                  gap: isMobile ? 14 : 10,
+                  padding: isMobile ? '14px 16px' : '20px 16px',
+                  borderRadius: 14,
                   background: hovered === i ? `color-mix(in oklch, ${step.color} 8%, var(--surface))` : 'var(--surface)',
                   border: `1px solid ${hovered === i ? `color-mix(in oklch, ${step.color} 50%, var(--border))` : 'var(--border)'}`,
-                  transition: 'all 0.18s', width: 132, cursor: 'default',
+                  transition: 'all 0.18s',
+                  width: isMobile ? '100%' : 132,
+                  maxWidth: isMobile ? 360 : undefined,
+                  cursor: 'default',
                   boxShadow: hovered === i ? `0 0 0 4px color-mix(in oklch, ${step.color} 12%, transparent)` : 'none',
                 }}
               >
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12,
+                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
                   background: `color-mix(in oklch, ${step.color} 15%, var(--surface-2))`,
                   border: `1.5px solid color-mix(in oklch, ${step.color} 35%, var(--border))`,
                   display: 'grid', placeItems: 'center',
@@ -1032,34 +1125,48 @@ export const Onboarding = ({ onNew }) => {
                 }}>
                   <Ico name={step.icon} size={20} />
                 </div>
-                <div style={{ fontSize: 9, fontWeight: 700, fontFamily: 'monospace', color: step.color, letterSpacing: '0.1em' }}>
-                  STEP {i + 1}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{step.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-4)', textAlign: 'center', lineHeight: 1.6 }}>
-                  {step.desc}
+                <div style={{
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: isMobile ? 'flex-start' : 'center',
+                  gap: isMobile ? 2 : 6,
+                  flex: isMobile ? 1 : undefined, minWidth: 0,
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, fontFamily: 'monospace', color: step.color, letterSpacing: '0.1em' }}>
+                    STEP {i + 1}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{step.label}</div>
+                  <div style={{
+                    fontSize: 11, color: 'var(--text-4)',
+                    textAlign: isMobile ? 'left' : 'center', lineHeight: 1.6,
+                  }}>
+                    {step.desc}
+                  </div>
                 </div>
               </div>
               {i < STEPS.length - 1 && (
                 <div style={{
                   color: 'var(--border-strong)', fontSize: 16,
-                  flexShrink: 0, padding: '0 4px', marginTop: -12,
+                  flexShrink: 0,
+                  padding: isMobile ? 0 : '0 4px',
+                  margin: isMobile ? '6px 0' : '-12px 0 0',
+                  transform: isMobile ? 'rotate(90deg)' : 'none',
                 }}>›</div>
               )}
             </React.Fragment>
           ))}
         </div>
 
-        {/* CTA */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: '100%', maxWidth: 360 }}>
           <button
             onClick={onNew}
             style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '14px 32px', borderRadius: 12, border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              padding: isMobile ? '14px 24px' : '14px 32px',
+              borderRadius: 12, border: 'none',
               background: 'linear-gradient(135deg, var(--violet), var(--mint))',
               color: '#000', fontSize: 15, fontWeight: 800,
               cursor: 'pointer', letterSpacing: '-0.01em',
+              width: isMobile ? '100%' : 'auto',
               boxShadow: '0 8px 32px rgba(0,212,160,0.25)',
               transition: 'transform 0.15s, box-shadow 0.15s',
             }}
@@ -1069,7 +1176,7 @@ export const Onboarding = ({ onNew }) => {
             <span style={{ fontSize: 18 }}>＋</span>
             첫 번째 프로젝트 시작하기
           </button>
-          <p style={{ fontSize: 12, color: 'var(--text-4)', margin: 0 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-4)', margin: 0, textAlign: 'center' }}>
             제목 하나만 입력하면 됩니다 — 나머지는 AI가
           </p>
         </div>

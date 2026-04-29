@@ -96,7 +96,9 @@ const Bubble = ({ msg }) => {
 };
 
 /* ── 기획 완료 카드 ── */
-const DocCard = ({ doc, shortTitle, setShortTitle, onConfirm, creating }) => (
+const DocCard = ({ doc, shortTitle, setShortTitle, onConfirm, creating }) => {
+  const [skipFactCheck, setSkipFactCheck] = React.useState(false);
+  return (
   <div style={{
     border: '1px solid rgba(0,212,160,0.3)',
     borderRadius: 14,
@@ -131,29 +133,41 @@ const DocCard = ({ doc, shortTitle, setShortTitle, onConfirm, creating }) => (
         </div>
       )}
     </div>
-    <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(0,212,160,0.12)', display: 'flex', gap: 8 }}>
-      <input
-        value={shortTitle}
-        onChange={e => setShortTitle(e.target.value)}
-        placeholder={doc.title || '다큐 제목...'}
-        style={{
-          flex: 1, padding: '8px 12px', fontSize: 13,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 8, outline: 'none',
-          color: 'rgba(255,255,255,0.88)',
-        }}
-        onFocus={e => e.target.style.borderColor = 'rgba(0,212,160,0.5)'}
-        onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-      />
-      <button className="btn primary" style={{ borderRadius: 8, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={onConfirm} disabled={creating}>
-        {creating
-          ? <><span className="spinner" style={{ width: 11, height: 11, borderWidth: 1.5 }} />생성 중</>
-          : <><Icon name="sparkles" size={13} />시나리오 생성</>}
-      </button>
+    <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(0,212,160,0.12)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+        <input
+          type="checkbox"
+          checked={skipFactCheck}
+          onChange={e => setSkipFactCheck(e.target.checked)}
+          style={{ accentColor: '#00d4a0', width: 14, height: 14 }}
+        />
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>팩트체크 건너뛰기 (더 빠름)</span>
+      </label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={shortTitle}
+          onChange={e => setShortTitle(e.target.value)}
+          placeholder={doc.title || '다큐 제목...'}
+          style={{
+            flex: 1, padding: '8px 12px', fontSize: 13,
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8, outline: 'none',
+            color: 'rgba(255,255,255,0.88)',
+          }}
+          onFocus={e => e.target.style.borderColor = 'rgba(0,212,160,0.5)'}
+          onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+        />
+        <button className="btn primary" style={{ borderRadius: 8, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => onConfirm(skipFactCheck)} disabled={creating}>
+          {creating
+            ? <><span className="spinner" style={{ width: 11, height: 11, borderWidth: 1.5 }} />생성 중</>
+            : <><Icon name="sparkles" size={13} />시나리오 생성</>}
+        </button>
+      </div>
     </div>
   </div>
-);
+  );
+};
 
 /* ── 추천 칩 ── */
 const Chips = ({ items, onSelect, disabled }) => (
@@ -327,7 +341,7 @@ const ChatArea = ({ pid, sources, onShortCreated }) => {
     if (finalDoc) { setDoc(finalDoc); setShortTitle(finalDoc.title || ''); }
   }, [pid, typing, sources, wsSend]);
 
-  const createShort = async () => {
+  const createShort = async (skipFactCheck = false) => {
     setCreating(true);
     try {
       const short = await api.post(`/api/projects/${pid}/shorts`, {
@@ -336,6 +350,7 @@ const ChatArea = ({ pid, sources, onShortCreated }) => {
           ...doc,
           chat_history: messages.map(m => ({ role: m.role, content: m.content })),
         },
+        skip_fact_check: skipFactCheck,
       });
       onShortCreated(short);
     } catch (e) { setError(e.message); setCreating(false); }

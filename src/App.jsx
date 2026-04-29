@@ -17,6 +17,7 @@ import { ImageGenChatView } from './components/ImageGenChatView';
 import { APP_DATA } from './data';
 import { api } from './api';
 import { ProgressBanner } from './components/ProgressBanner';
+import { OnboardingLogin, Onboarding } from './components/Onboarding';
 
 const App = () => {
   const [view, setView] = React.useState(() => {
@@ -156,6 +157,27 @@ const App = () => {
     content = <RenderView project={activeProject} short={activeShort} onShortUpdate={setActiveShort} />;
   } else if (view === 'export') {
     content = <ExportView scenes={APP_DATA.scenes} />;
+  }
+
+  // 비로그인 → 랜딩 페이지
+  if (!user) {
+    return (
+      <>
+        <OnboardingLogin onLoginClick={() => setLoginOpen(true)} />
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { saveAuth(null, u); window.location.reload(); }} />
+      </>
+    );
+  }
+
+  // 로그인 후 프로젝트 0개 → 온보딩
+  if (!projectsLoading && projects.length === 0 && !activeProject) {
+    return (
+      <>
+        <Onboarding onNew={() => setShowWizard(true)} />
+        {showWizard && <NewProjectWizard onCreated={handleProjectCreated} onClose={() => setShowWizard(false)} />}
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={u => { saveAuth(null, u); window.location.reload(); }} />
+      </>
+    );
   }
 
   return (
