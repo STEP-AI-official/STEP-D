@@ -619,6 +619,7 @@ const SHOWCASE_ITEMS = [
 
 const SHOWCASE_CSS = `
 @keyframes sc-fade-up { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes sc-modal-in { from{opacity:0;transform:scale(0.94)} to{opacity:1;transform:scale(1)} }
 .sc-hero-card:hover .sc-hero-overlay { opacity: 1 !important; }
 .sc-hero-card:hover .sc-hero-info { transform: translateY(0) !important; opacity: 1 !important; }
 .sc-grid-card:hover .sc-grid-overlay { opacity: 1 !important; }
@@ -628,17 +629,60 @@ const SHOWCASE_CSS = `
 .sc-grid-card:hover { box-shadow: 0 24px 64px rgba(0,0,0,0.8) !important; }
 `;
 
-const ShowcaseHeroCard = ({ item, onLogin }) => {
+const VideoModal = ({ item, onClose }) => {
+  React.useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', fn);
+    return () => document.removeEventListener('keydown', fn);
+  }, [onClose]);
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '24px',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 1100,
+        animation: 'sc-modal-in 0.25s ease both',
+      }}>
+        {/* 닫기 */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 12,
+            fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            닫기
+          </button>
+        </div>
+        {/* 영상 */}
+        <video src={item.video_url} controls autoPlay
+          style={{ width: '100%', aspectRatio: '16/9', borderRadius: 14, background: '#000', display: 'block' }} />
+        {/* 제목 */}
+        {item.title && (
+          <div style={{ marginTop: 14, fontSize: 16, fontWeight: 700, color: '#fff' }}>{item.title}</div>
+        )}
+        {item.desc && (
+          <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{item.desc}</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ShowcaseHeroCard = ({ item, onOpen }) => {
   const videoRef = React.useRef(null);
   const [hovered, setHovered] = React.useState(false);
-  // 히어로는 마운트 시 자동재생
   React.useEffect(() => {
     if (!videoRef.current || !item.video_url) return;
     videoRef.current.play().catch(() => {});
   }, [item.video_url]);
 
   return (
-    <div className="sc-hero-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    <div className="sc-hero-card" onClick={() => onOpen(item)} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', aspectRatio: '16/9', cursor: 'pointer', background: '#111' }}>
       {item.thumbnail_url && (
         <img src={item.thumbnail_url} alt={item.title}
@@ -673,7 +717,7 @@ const ShowcaseHeroCard = ({ item, onLogin }) => {
   );
 };
 
-const ShowcaseGridCard = ({ item }) => {
+const ShowcaseGridCard = ({ item, onOpen }) => {
   const videoRef = React.useRef(null);
   const [hovered, setHovered] = React.useState(false);
   React.useEffect(() => {
@@ -685,7 +729,7 @@ const ShowcaseGridCard = ({ item }) => {
   }, [hovered, item.video_url]);
 
   return (
-    <div className="sc-grid-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    <div className="sc-grid-card" onClick={() => onOpen(item)} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', aspectRatio: '16/9', cursor: 'pointer', background: '#111', boxShadow: hovered ? '0 20px 60px rgba(0,0,0,0.7)' : '0 4px 20px rgba(0,0,0,0.4)', transition: 'box-shadow 0.3s' }}>
       {item.thumbnail_url && (
         <img src={item.thumbnail_url} alt={item.title} className="sc-grid-thumb"
@@ -720,9 +764,11 @@ const ShowcasePage = ({ onLogin, onNav, onContact }) => {
   const items = SHOWCASE_ITEMS;
   const hero = items[0] ?? null;
   const rest = items.slice(1);
+  const [modalItem, setModalItem] = React.useState(null);
 
   return (
     <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', background: '#0a0a0f', userSelect: 'none' }}>
+      {modalItem && <VideoModal item={modalItem} onClose={() => setModalItem(null)} />}
       <style>{SHOWCASE_CSS}</style>
       <InjectStyle />
 
@@ -758,7 +804,7 @@ const ShowcasePage = ({ onLogin, onNav, onContact }) => {
             {/* 히어로 */}
             {hero && (
               <div style={{ animation: 'sc-fade-up 0.6s 0.05s ease both' }}>
-                <ShowcaseHeroCard item={hero} onLogin={onLogin} />
+                <ShowcaseHeroCard item={hero} onOpen={setModalItem} />
               </div>
             )}
 
@@ -770,7 +816,7 @@ const ShowcasePage = ({ onLogin, onNav, onContact }) => {
                 gap: isMobile ? 12 : 16,
                 animation: 'sc-fade-up 0.6s 0.15s ease both',
               }}>
-                {rest.map(item => <ShowcaseGridCard key={item.id} item={item} />)}
+                {rest.map(item => <ShowcaseGridCard key={item.id} item={item} onOpen={setModalItem} />)}
               </div>
             )}
           </div>
