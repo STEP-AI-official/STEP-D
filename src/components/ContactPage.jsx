@@ -3,6 +3,8 @@ import React from 'react';
 const ANIM_CSS = `
 @keyframes contact-fade-up { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 @keyframes contact-fade-in { from{opacity:0} to{opacity:1} }
+.contact-input::placeholder { color: rgba(255,255,255,0.3); }
+.contact-input:focus { border-color: var(--mint) !important; background: rgba(255,255,255,0.09) !important; }
 `;
 
 const PROJECT_TYPES = ['AI SaaS', 'Automation', 'Branding', 'AI Commercial', '기타'];
@@ -26,7 +28,7 @@ const Select = ({ label, options, value, onChange, placeholder }) => {
         <div onClick={() => setOpen(o => !o)} style={{
           ...inputStyle, cursor: 'pointer',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          color: value ? 'var(--text)' : 'var(--text-4)',
+          color: value ? '#fff' : 'rgba(255,255,255,0.35)',
         }}>
           <span>{value || placeholder}</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -66,9 +68,10 @@ const labelStyle = {
   letterSpacing: '0.12em', color: 'var(--text-3)',
 };
 const inputStyle = {
-  width: '100%', background: 'transparent',
-  borderBottom: '1px solid var(--border-strong)',
-  padding: '9px 0', fontSize: 13, color: 'var(--text)',
+  width: '100%', background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.18)',
+  borderRadius: 8,
+  padding: '10px 14px', fontSize: 13, color: '#fff',
   outline: 'none', transition: 'border-color 0.15s',
   boxSizing: 'border-box',
 };
@@ -203,16 +206,12 @@ export const ContactPage = ({ onClose }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={labelStyle}>회사명 (필수)</label>
                 <input value={company} onChange={e => setCompany(e.target.value)} required
-                  placeholder="Company Name" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = 'var(--mint)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                  placeholder="Company Name" className="contact-input" style={inputStyle} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={labelStyle}>담당자명 (필수)</label>
                 <input value={contact} onChange={e => setContact(e.target.value)} required
-                  placeholder="Contact Name" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = 'var(--mint)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                  placeholder="Contact Name" className="contact-input" style={inputStyle} />
               </div>
             </div>
 
@@ -221,16 +220,12 @@ export const ContactPage = ({ onClose }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={labelStyle}>이메일 (필수)</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                  placeholder="Email Address" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = 'var(--mint)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                  placeholder="Email Address" className="contact-input" style={inputStyle} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={labelStyle}>연락처 (선택)</label>
                 <input value={phone} onChange={e => setPhone(e.target.value)}
-                  placeholder="Phone Number" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = 'var(--mint)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                  placeholder="Phone Number" className="contact-input" style={inputStyle} />
               </div>
             </div>
 
@@ -280,9 +275,8 @@ export const ContactPage = ({ onClose }) => {
               <textarea value={desc} onChange={e => setDesc(e.target.value)}
                 placeholder="Project description"
                 rows={4}
-                style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }}
-                onFocus={e => e.target.style.borderColor = 'var(--mint)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                className="contact-input"
+                style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} />
             </div>
 
             {/* 참고 링크 */}
@@ -296,9 +290,8 @@ export const ContactPage = ({ onClose }) => {
                   onChange={e => setCurLink(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addLink(); } }}
                   disabled={links.length >= 3}
-                  style={{ ...inputStyle, flex: 1, opacity: links.length >= 3 ? 0.4 : 1 }}
-                  onFocus={e => e.target.style.borderColor = 'var(--mint)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                  className="contact-input"
+                  style={{ ...inputStyle, flex: 1, opacity: links.length >= 3 ? 0.4 : 1 }} />
                 <button type="button" onClick={addLink} disabled={!curLink.trim() || links.length >= 3}
                   style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-4)', padding: '0 4px', whiteSpace: 'nowrap', opacity: (!curLink.trim() || links.length >= 3) ? 0.3 : 1 }}>
                   Add
