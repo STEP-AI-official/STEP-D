@@ -1,4 +1,5 @@
 import React from 'react';
+import { ContactPage } from './ContactPage';
 
 /* ── CSS animations injected once ── */
 const ANIM_STYLE = `
@@ -112,7 +113,7 @@ const Wordmark = ({ size = 20 }) => (
 );
 
 /* ── 상단 네비 ── */
-const TopBar = ({ onLogin, onNav, activePage = 'home' }) => {
+const TopBar = ({ onLogin, onNav, onContact, activePage = 'home' }) => {
   const isMobile = useIsMobile();
   return (
     <div style={{
@@ -140,6 +141,16 @@ const TopBar = ({ onLogin, onNav, activePage = 'home' }) => {
                 onMouseLeave={e => e.currentTarget.style.color = activePage === key ? 'var(--text)' : 'var(--text-3)'}
               >{label}</a>
             ))}
+            <a onClick={onContact}
+              style={{
+                fontSize: 13, padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
+                textDecoration: 'none', transition: 'color 0.15s',
+                color: activePage === 'contact' ? 'var(--text)' : 'var(--text-3)',
+                fontWeight: activePage === 'contact' ? 700 : 400,
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+              onMouseLeave={e => e.currentTarget.style.color = activePage === 'contact' ? 'var(--text)' : 'var(--text-3)'}
+            >Contact</a>
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 6px' }} />
             <button onClick={onLogin} style={{
               fontSize: 13, color: 'var(--text-2)', padding: '6px 14px', borderRadius: 8,
@@ -685,7 +696,7 @@ const SHOWCASE_ITEMS = [
   // 예시: { id: '1', title: '조선시대 마지막 어의', thumbnail_url: '/showcase/thumb1.jpg', video_url: '/showcase/video1.mp4' },
 ];
 
-const ShowcasePage = ({ onLogin, onNav }) => {
+const ShowcasePage = ({ onLogin, onNav, onContact }) => {
   const isMobile = useIsMobile();
   const items = SHOWCASE_ITEMS;
 
@@ -703,7 +714,7 @@ const ShowcasePage = ({ onLogin, onNav }) => {
         `,
       }} />
 
-      <TopBar onLogin={onLogin} onNav={onNav} activePage="showcase" />
+      <TopBar onLogin={onLogin} onNav={onNav} onContact={onContact} activePage="showcase" />
 
       <div style={{
         position: 'relative', zIndex: 1,
@@ -797,6 +808,7 @@ export const OnboardingLogin = ({ onLoginClick }) => {
   const typed = useTyping(SAMPLE_PROMPTS);
   const [hoveredChip, setHoveredChip] = React.useState(null);
   const [page, setPage] = React.useState('home'); // 'home' | 'showcase'
+  const [contactOpen, setContactOpen] = React.useState(false);
   const heroRef = React.useRef(null);
 
   const handleNav = (key) => {
@@ -809,10 +821,11 @@ export const OnboardingLogin = ({ onLoginClick }) => {
   };
 
   if (page === 'showcase') {
-    return <ShowcasePage onLogin={onLoginClick} onNav={handleNav} />;
+    return <ShowcasePage onLogin={onLoginClick} onNav={handleNav} onContact={() => setContactOpen(true)} />;
   }
 
   return (
+    <>
     <div ref={heroRef} style={{
       position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden',
       background: 'var(--bg)',
@@ -838,7 +851,7 @@ export const OnboardingLogin = ({ onLoginClick }) => {
         WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
       }} />
 
-      <TopBar onLogin={onLoginClick} onNav={handleNav} activePage="home" />
+      <TopBar onLogin={onLoginClick} onNav={handleNav} onContact={() => setContactOpen(true)} activePage="home" />
 
       <div style={{
         position: 'relative', zIndex: 1,
@@ -1042,6 +1055,8 @@ export const OnboardingLogin = ({ onLoginClick }) => {
         </div>
       </div>
     </div>
+    {contactOpen && <ContactPage onClose={() => setContactOpen(false)} />}
+    </>
   );
 };
 
