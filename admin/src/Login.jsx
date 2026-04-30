@@ -1,7 +1,7 @@
 import React from 'react';
 
-const ADMIN_EMAIL = 'admin@stepd.co.kr';
-const ADMIN_PW = '5174';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
+const ADMIN_PW = import.meta.env.VITE_ADMIN_PW;
 const SESSION_KEY = 'stepd_admin_auth';
 
 export function useAuth() {
@@ -46,13 +46,13 @@ export const Login = ({ onLogin }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>이메일</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="admin@stepd.co.kr" required autoFocus />
+            placeholder="" required autoFocus />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>비밀번호</label>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)}
-            placeholder="••••" required />
+            placeholder="" required />
         </div>
 
         {error && (
