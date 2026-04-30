@@ -821,7 +821,12 @@ export const OnboardingLogin = ({ onLoginClick }) => {
   };
 
   if (page === 'showcase') {
-    return <ShowcasePage onLogin={onLoginClick} onNav={handleNav} onContact={() => setContactOpen(true)} />;
+    return (
+      <>
+        <ShowcasePage onLogin={onLoginClick} onNav={handleNav} onContact={() => setContactOpen(true)} />
+        {contactOpen && <ContactPage onClose={() => setContactOpen(false)} />}
+      </>
+    );
   }
 
   return (
