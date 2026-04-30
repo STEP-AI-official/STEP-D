@@ -41,7 +41,7 @@ const Icon = ({ name }) => (
   </svg>
 );
 
-export default function App() {
+export default function App({ onLogout }) {
   const [page, setPage] = React.useState('dashboard');
 
   const content = {
@@ -64,7 +64,10 @@ export default function App() {
           <span style={{ fontWeight: 700, fontSize: 15 }}>STEP D</span>
           <span style={{ fontSize: 11, padding: '2px 7px', background: 'var(--rose-dim)', color: 'var(--rose)', borderRadius: 20, fontWeight: 600 }}>ADMIN</span>
         </div>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)' }}>{import.meta.env.VITE_API_BASE_URL || 'localhost:8766'}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>{import.meta.env.VITE_API_BASE_URL || 'localhost:8766'}</span>
+          <button className="btn btn-ghost btn-sm" onClick={onLogout}>로그아웃</button>
+        </div>
       </header>
 
       <nav className="sidebar">
