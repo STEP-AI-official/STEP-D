@@ -431,6 +431,457 @@ const ChunkDetailPanel = ({ chunk, catMap, ctMap, onTypeChanged }) => {
   );
 };
 
+/* ── 유저 관리 탭 ────────────────────────────────────────────────────────── */
+const UserCard = ({ u, onToggleRole, updating, onSelect }) => {
+  const fmt = (iso) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    const diff = Math.floor((Date.now() - d) / 86400000);
+    if (diff === 0) return '오늘';
+    if (diff === 1) return '어제';
+    if (diff < 7)  return `${diff}일 전`;
+    if (diff < 30) return `${Math.floor(diff/7)}주 전`;
+    if (diff < 365) return `${Math.floor(diff/30)}개월 전`;
+    return `${Math.floor(diff/365)}년 전`;
+  };
+  const fmtDate = (iso) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  const isAdmin = u.role === 'admin';
+  const isActive = u.last_login_at && (Date.now() - new Date(u.last_login_at)) < 7 * 86400000;
+
+  return (
+    <div onClick={() => onSelect(u)} style={{
+      background: 'var(--surface)', border: `1px solid ${isAdmin ? 'color-mix(in oklch, var(--violet) 40%, var(--border))' : 'var(--border)'}`,
+      borderRadius: 12, padding: '16px', cursor: 'pointer',
+      display: 'flex', flexDirection: 'column', gap: 12,
+      transition: 'border-color 0.15s',
+      position: 'relative',
+    }}>
+      {/* 상단: 프로필 + 이름/이메일 */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          {u.picture
+            ? <img src={u.picture} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+            : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-2)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', fontSize: 20 }}>👤</div>
+          }
+          {/* 활성 상태 도트 */}
+          <div style={{
+            position: 'absolute', bottom: 1, right: 1,
+            width: 10, height: 10, borderRadius: '50%',
+            background: isActive ? 'var(--mint)' : 'var(--border)',
+            border: '2px solid var(--surface)',
+          }} title={isActive ? '최근 7일 활성' : '비활성'} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {u.name || '(이름 없음)'}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+            {u.email}
+          </div>
+        </div>
+        {/* Role 뱃지 */}
+        <button
+          onClick={e => { e.stopPropagation(); onToggleRole(u); }}
+          disabled={updating}
+          style={{
+            fontSize: 9, padding: '3px 8px', borderRadius: 5, cursor: updating ? 'wait' : 'pointer',
+            fontWeight: 700, border: 'none', flexShrink: 0,
+            background: isAdmin ? 'var(--violet)' : 'var(--surface-2)',
+            color: isAdmin ? '#fff' : 'var(--text-4)',
+            opacity: updating ? 0.5 : 1,
+          }}>
+          {updating ? '…' : isAdmin ? 'ADMIN' : 'user'}
+        </button>
+      </div>
+
+      {/* 통계 3칸 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0,
+        background: 'var(--bg-2)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+        {[
+          { label: '프로젝트', value: u.project_count ?? 0 },
+          { label: '쇼츠',     value: u.shorts_count ?? '-' },
+          { label: '완성 컷',  value: u.cuts_done    ?? '-' },
+        ].map((s, i) => (
+          <div key={s.label} style={{
+            padding: '8px 0', textAlign: 'center',
+            borderRight: i < 2 ? '1px solid var(--border)' : 'none',
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 9, color: 'var(--text-4)', marginTop: 3 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 하단: 가입일 + 마지막 로그인 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-5)', fontFamily: 'var(--font-mono)' }}>
+        <span>가입 {fmtDate(u.created_at)}</span>
+        <span style={{ color: isActive ? 'var(--mint)' : 'var(--text-5)' }}>
+          로그인 {fmt(u.last_login_at)}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const UsersTab = () => {
+  const [users, setUsers]       = React.useState([]);
+  const [total, setTotal]       = React.useState(0);
+  const [loading, setLoading]   = React.useState(true);
+  const [updatingId, setUpdatingId] = React.useState(null);
+  const [selected, setSelected] = React.useState(null);
+  const [detail, setDetail]     = React.useState(null);
+  const [detailLoading, setDetailLoading] = React.useState(false);
+  const [search, setSearch]     = React.useState('');
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/admin/users?limit=500');
+      setUsers(res.users || []);
+      setTotal(res.total || 0);
+    } catch {}
+    finally { setLoading(false); }
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const loadDetail = React.useCallback(async (u) => {
+    setSelected(u); setDetail(null); setDetailLoading(true);
+    try {
+      const d = await api.get(`/api/admin/users/${u.id}/stats`);
+      setDetail(d);
+    } catch {}
+    finally { setDetailLoading(false); }
+  }, []);
+
+  const toggleRole = async (u) => {
+    const next = u.role === 'admin' ? 'user' : 'admin';
+    if (!window.confirm(`${u.email} 의 role을 '${next}'로 변경?`)) return;
+    setUpdatingId(u.id);
+    try {
+      await api.patch(`/api/admin/users/${u.id}/role`, { role: next });
+      setUsers(us => us.map(x => x.id === u.id ? { ...x, role: next } : x));
+      if (selected?.id === u.id) setSelected(s => ({ ...s, role: next }));
+    } catch (e) { alert(e.message); }
+    finally { setUpdatingId(null); }
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  const filtered = users.filter(u =>
+    !search || u.email?.includes(search) || u.name?.includes(search)
+  );
+
+  const summary = {
+    total: users.length,
+    admins: users.filter(u => u.role === 'admin').length,
+    active: users.filter(u => u.last_login_at && Date.now() - new Date(u.last_login_at) < 7 * 86400000).length,
+    withProject: users.filter(u => u.project_count > 0).length,
+  };
+
+  return (
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+
+      {/* 왼쪽: 유저 카드 그리드 */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
+        {/* 요약 바 */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {[
+            { label: '전체', value: summary.total, color: 'var(--text)' },
+            { label: '어드민', value: summary.admins, color: 'var(--violet)' },
+            { label: '7일 활성', value: summary.active, color: 'var(--mint)' },
+            { label: '프로젝트 있음', value: summary.withProject, color: '#f59e0b' },
+          ].map(s => (
+            <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-4)' }}>{s.label}</div>
+            </div>
+          ))}
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="이메일 / 이름 검색"
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7, padding: '7px 10px', color: 'var(--text)', outline: 'none' }} />
+          </div>
+          <button onClick={load} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '7px 12px', cursor: 'pointer', color: 'var(--text-4)', fontSize: 11 }}>
+            새로고침
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-4)', fontSize: 11 }}>
+            <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />불러오는 중...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text-4)', textAlign: 'center', paddingTop: 40 }}>유저 없음</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+            {filtered.map(u => (
+              <UserCard
+                key={u.id}
+                u={u}
+                onToggleRole={toggleRole}
+                updating={updatingId === u.id}
+                onSelect={loadDetail}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 오른쪽: 선택 유저 상세 패널 */}
+      {selected && (
+        <div style={{
+          width: 280, flexShrink: 0, borderLeft: '1px solid var(--border)',
+          background: 'var(--bg-2)', overflowY: 'auto', padding: '20px 16px',
+          display: 'flex', flexDirection: 'column', gap: 16,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>유저 상세</span>
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-4)', fontSize: 16, lineHeight: 1, padding: 2 }}>×</button>
+          </div>
+
+          {/* 프로필 */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
+            {selected.picture
+              ? <img src={selected.picture} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }} />
+              : <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--border)', display: 'grid', placeItems: 'center', fontSize: 28 }}>👤</div>
+            }
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.name || '(이름 없음)'}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-4)', wordBreak: 'break-all' }}>{selected.email}</div>
+            <div style={{
+              fontSize: 10, padding: '3px 10px', borderRadius: 5, fontWeight: 700,
+              background: selected.role === 'admin' ? 'var(--violet)' : 'var(--surface)',
+              color: selected.role === 'admin' ? '#fff' : 'var(--text-4)',
+              border: `1px solid ${selected.role === 'admin' ? 'var(--violet)' : 'var(--border)'}`,
+            }}>{selected.role === 'admin' ? 'ADMIN' : 'USER'}</div>
+          </div>
+
+          {/* 날짜 정보 */}
+          <div style={{ background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { label: '가입일',         value: fmtDate(selected.created_at) },
+              { label: '마지막 로그인',   value: fmtDate(selected.last_login_at) },
+            ].map(r => (
+              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span style={{ color: 'var(--text-4)' }}>{r.label}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{r.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* 상세 통계 */}
+          {detailLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 16 }}>
+              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+            </div>
+          ) : detail ? (
+            <>
+              <div style={{ background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)', marginBottom: 2 }}>사용 현황</div>
+                {[
+                  { label: '프로젝트',  value: detail.stats?.projects ?? 0 },
+                  { label: '쇼츠',      value: detail.stats?.shorts   ?? 0 },
+                  { label: '완성 컷',   value: detail.stats?.cuts_done ?? 0 },
+                ].map(r => (
+                  <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-4)' }}>{r.label}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{r.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 최근 쇼츠 */}
+              {detail.recent_shorts?.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)' }}>최근 쇼츠</div>
+                  {detail.recent_shorts.map(s => (
+                    <div key={s.id} style={{ background: 'var(--surface)', borderRadius: 7, border: '1px solid var(--border)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || '(제목 없음)'}</div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{
+                          fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 700,
+                          background: s.status === 'done' ? 'color-mix(in oklch, var(--mint) 15%, var(--surface))' : s.status === 'failed' ? 'color-mix(in oklch, var(--rose) 15%, var(--surface))' : 'var(--bg-2)',
+                          color: s.status === 'done' ? 'var(--mint)' : s.status === 'failed' ? 'var(--rose)' : 'var(--text-4)',
+                          border: `1px solid ${s.status === 'done' ? 'color-mix(in oklch, var(--mint) 30%, var(--border))' : s.status === 'failed' ? 'color-mix(in oklch, var(--rose) 30%, var(--border))' : 'var(--border)'}`,
+                        }}>{s.stage} · {s.status}</span>
+                        <span style={{ fontSize: 9, color: 'var(--text-5)', fontFamily: 'var(--font-mono)' }}>{fmtDate(s.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+/* ── 배경 임베딩 탭 ──────────────────────────────────────────────────────── */
+const BgEmbedTab = () => {
+  const [stats, setStats]         = React.useState(null);
+  const [file, setFile]           = React.useState(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [result, setResult]       = React.useState(null);
+  const [error, setError]         = React.useState('');
+  const [force, setForce]         = React.useState(false);
+  const fileRef = React.useRef();
+
+  const loadStats = React.useCallback(async () => {
+    try {
+      const res = await api.get('/api/admin/rag/background/stats');
+      setStats(res);
+    } catch {}
+  }, []);
+
+  React.useEffect(() => { loadStats(); }, [loadStats]);
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true); setResult(null); setError('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const token = localStorage.getItem('auth_token');
+      const apiBase = import.meta.env.DEV
+        ? ''
+        : (import.meta.env.VITE_API_BASE_URL ?? '');
+      const url = `${apiBase}/api/admin/rag/background/ingest-json${force ? '?force=true' : ''}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      const res = await r.json();
+      setResult(res);
+      loadStats();
+    } catch (e) {
+      setError(e.message || '업로드 실패');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{ overflowY: 'auto', height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* 현재 통계 */}
+      <div style={{ display: 'flex', gap: 12 }}>
+        {[
+          { label: '임베딩된 배경 묘사', value: stats?.chunks?.toLocaleString() ?? '…', color: '#64748b' },
+          { label: '소스 파일 수',       value: stats?.sources?.toLocaleString() ?? '…', color: '#64748b' },
+        ].map(s => (
+          <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 20px', minWidth: 140 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+        <button onClick={loadStats} style={{ alignSelf: 'center', background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer', color: 'var(--text-4)', fontSize: 11 }}>
+          새로고침
+        </button>
+      </div>
+
+      {/* 업로드 카드 */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 22px', maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>AI Hub 배경 묘사 JSON 업로드</div>
+        <div style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.7 }}>
+          AI Hub <b>대한민국 배경영상 상세 설명문</b> JSON 파일을 업로드하면<br/>
+          자동으로 텍스트를 추출해 <code style={{ background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 3 }}>background_ko</code> 카테고리로 임베딩합니다.<br/>
+          배열(여러 항목) 또는 단일 객체 모두 지원합니다.
+        </div>
+
+        {/* 파일 선택 */}
+        <div
+          onClick={() => fileRef.current?.click()}
+          style={{
+            border: `2px dashed ${file ? 'var(--violet)' : 'var(--border)'}`,
+            borderRadius: 10, padding: '20px', textAlign: 'center', cursor: 'pointer',
+            background: file ? 'color-mix(in oklch, var(--violet) 5%, var(--bg-2))' : 'var(--bg-2)',
+            transition: 'all 0.15s',
+          }}>
+          <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
+            onChange={e => { setFile(e.target.files[0] || null); setResult(null); setError(''); }} />
+          {file ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+              <span style={{ fontSize: 24 }}>📄</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--violet)' }}>{file.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-4)' }}>{(file.size / 1024).toFixed(1)} KB</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 28 }}>☁️</span>
+              <span style={{ fontSize: 12, color: 'var(--text-3)' }}>JSON 파일을 클릭해서 선택하세요</span>
+              <span style={{ fontSize: 10, color: 'var(--text-5)' }}>.json 파일만 지원</span>
+            </div>
+          )}
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--text-3)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} />
+          기존 항목 덮어쓰기 (force)
+        </label>
+
+        <button onClick={handleUpload} disabled={!file || uploading}
+          style={{
+            fontSize: 12, padding: '9px 24px', borderRadius: 8, border: 'none',
+            cursor: (!file || uploading) ? 'not-allowed' : 'pointer',
+            background: (!file || uploading) ? 'var(--surface-2)' : '#64748b',
+            color: (!file || uploading) ? 'var(--text-4)' : '#fff',
+            fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+          }}>
+          {uploading
+            ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />임베딩 중... (시간이 걸릴 수 있습니다)</>
+            : '임베딩 시작'}
+        </button>
+
+        {/* 결과 */}
+        {result && !result.error && (
+          <div style={{ background: 'color-mix(in oklch, var(--mint) 10%, var(--surface))', border: '1px solid color-mix(in oklch, var(--mint) 40%, var(--border))', borderRadius: 8, padding: '12px 14px', fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontWeight: 700, color: 'var(--mint)' }}>✓ 완료</div>
+            <div style={{ color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
+              전체 {result.total}개 항목 →
+              <span style={{ color: 'var(--mint)', marginLeft: 6 }}>삽입 {result.inserted}개</span>
+              <span style={{ color: 'var(--text-4)', marginLeft: 6 }}>스킵 {result.skipped}개</span>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div style={{ background: 'color-mix(in oklch, var(--rose) 10%, var(--surface))', border: '1px solid color-mix(in oklch, var(--rose) 30%, var(--border))', borderRadius: 8, padding: '10px 14px', fontSize: 11, color: 'var(--rose)' }}>
+            ✗ {error}
+          </div>
+        )}
+      </div>
+
+      {/* 사용 팁 */}
+      <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', maxWidth: 560 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8 }}>지원 JSON 포맷</div>
+        <pre style={{ fontSize: 10, color: 'var(--text-4)', fontFamily: 'var(--font-mono)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{`// AI Hub 공식 포맷
+{ "annotation": { "description_ko": "서울 도심 빌딩 전경..." }, "location": "서울", "time_of_day": "밤" }
+
+// 커스텀 포맷
+{ "description_ko": "한강 공원 산책로...", "tags": ["한강", "공원"] }
+
+// 배열 (여러 항목)
+[ { "description_ko": "..." }, { "description_ko": "..." } ]`}</pre>
+      </div>
+    </div>
+  );
+};
+
+
 /* ── RAG 관리 탭 메인 ────────────────────────────────────────────────────── */
 const RagAdminTab = () => {
   const [view, setView]             = React.useState('browse');   // browse | ingest | search
@@ -732,10 +1183,273 @@ const RagAdminTab = () => {
   );
 };
 
+/* ══ 분석 탭 ══════════════════════════════════════════════════════════════ */
+const AnalyticsTab = () => {
+  const [days, setDays]           = React.useState(7);
+  const [errors, setErrors]       = React.useState(null);
+  const [usage, setUsage]         = React.useState(null);
+  const [models, setModels]       = React.useState(null);
+  const [loading, setLoading]     = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const [e, u, m] = await Promise.all([
+        api.get(`/api/admin/analytics/errors?days=${days}`),
+        api.get(`/api/admin/analytics/usage?days=${days}`),
+        api.get(`/api/admin/analytics/models?days=${days}`),
+      ]);
+      setErrors(e); setUsage(u); setModels(m);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [days]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  return (
+    <div style={{ overflowY: 'auto', height: '100%', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* 기간 선택 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>분석 대시보드</span>
+        {[7, 14, 30, 90].map(d => (
+          <button key={d} onClick={() => setDays(d)}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: days === d ? 'var(--violet)' : 'var(--surface-2)',
+              color: days === d ? '#fff' : 'var(--text-3)', fontWeight: days === d ? 700 : 400 }}>
+            {d}일
+          </button>
+        ))}
+        {loading && <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+      </div>
+
+      {/* Stage 실패율 */}
+      {errors?.stage_stats?.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Stage별 실패율</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {errors.stage_stats.map(s => (
+              <div key={s.stage} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 60px', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-3)' }}>{s.stage}</span>
+                <div style={{ height: 6, background: 'var(--bg-2)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${s.fail_rate}%`, background: s.fail_rate > 20 ? 'var(--rose)' : s.fail_rate > 5 ? '#f59e0b' : 'var(--mint)', borderRadius: 3, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: s.fail_rate > 20 ? 'var(--rose)' : 'var(--text-4)', textAlign: 'right' }}>
+                  {s.fail_rate}% ({s.failed}/{s.total})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 모델별 사용 */}
+      {models?.models?.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>모델별 사용 현황</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px 70px', gap: 0,
+              background: 'var(--bg-2)', padding: '7px 12px',
+              fontSize: 10, fontWeight: 700, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
+              <span>모델</span><span style={{textAlign:'right'}}>전체</span><span style={{textAlign:'right'}}>완료</span><span style={{textAlign:'right'}}>실패</span><span style={{textAlign:'right'}}>평균점수</span>
+            </div>
+            {models.models.map((m, i) => (
+              <div key={m.model} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px 70px', alignItems: 'center', gap: 0, padding: '8px 12px',
+                borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                background: i % 2 === 0 ? 'var(--surface)' : 'transparent' }}>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.model}>{m.model.split('/').slice(-2).join('/')}</span>
+                <span style={{ fontSize: 11, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.total}</span>
+                <span style={{ fontSize: 11, textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--mint)' }}>{m.done}</span>
+                <span style={{ fontSize: 11, textAlign: 'right', fontFamily: 'var(--font-mono)', color: m.failed > 0 ? 'var(--rose)' : 'var(--text-4)' }}>{m.failed}</span>
+                <span style={{ fontSize: 11, textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--violet)' }}>{m.avg_score != null ? `★${m.avg_score}` : '-'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 최근 에러 */}
+      {errors?.recent_errors?.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>최근 실패 ({errors.recent_errors.length}건)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+            {errors.recent_errors.map(e => (
+              <div key={e.id} style={{ background: 'var(--bg-2)', borderRadius: 7, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--rose)', fontWeight: 700 }}>{e.stage}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-4)' }}>{e.project_title}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-5)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>{new Date(e.updated_at).toLocaleString('ko')}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>{e.error?.slice(0, 200)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 일별 추이 요약 */}
+      {usage?.shorts_daily?.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>일별 쇼츠 생성 ({days}일)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {usage.shorts_daily.slice(-14).map(d => (
+              <div key={d.day} style={{ background: 'var(--bg-2)', borderRadius: 6, padding: '6px 10px', minWidth: 70 }}>
+                <div style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>{d.day.slice(5)}</div>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{d.created}<span style={{ fontSize: 9, color: 'var(--mint)', marginLeft: 4 }}>✓{d.done}</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 컷 에러 패턴 */}
+      {errors?.cut_errors?.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>컷 에러 패턴 (top 20)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
+            {errors.cut_errors.map((e, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 40px', gap: 8, alignItems: 'start', fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                <span style={{ color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.model}>{e.model?.split('/').slice(-1)[0] || '-'}</span>
+                <span style={{ color: 'var(--text-3)', wordBreak: 'break-all' }}>{e.error?.slice(0, 120)}</span>
+                <span style={{ color: 'var(--rose)', textAlign: 'right', fontWeight: 700 }}>{e.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+/* ══ 컷 재생성 탭 ══════════════════════════════════════════════════════════ */
+const RegenerateTab = () => {
+  const [cutKey, setCutKey]     = React.useState('');
+  const [detail, setDetail]     = React.useState(null);
+  const [loading, setLoading]   = React.useState(false);
+  const [models, setModels]     = React.useState([]);
+  const [selModel, setSelModel] = React.useState('');
+  const [prompt, setPrompt]     = React.useState('');
+  const [seed, setSeed]         = React.useState('');
+  const [regen, setRegen]       = React.useState(false);
+  const [result, setResult]     = React.useState(null);
+  const [err, setErr]           = React.useState('');
+
+  React.useEffect(() => {
+    api.get('/api/admin/allowed-models').then(r => setModels(r.models || [])).catch(() => {});
+  }, []);
+
+  const lookup = async () => {
+    if (!cutKey.trim()) return;
+    setLoading(true); setDetail(null); setErr('');
+    try {
+      const d = await api.get(`/api/admin/cuts/${cutKey.trim()}`);
+      setDetail(d);
+      setSelModel(d.model || '');
+      setPrompt(d.video_prompt_en || '');
+      setSeed(d.seed ? String(d.seed) : '');
+    } catch (e) { setErr(`조회 실패: ${e.message}`); }
+    finally { setLoading(false); }
+  };
+
+  const handleRegen = async () => {
+    setRegen(true); setResult(null); setErr('');
+    try {
+      const body = {};
+      if (selModel) body.video_model = selModel;
+      if (prompt)   body.video_prompt_en = prompt;
+      if (seed)     body.seed = parseInt(seed, 10);
+      const r = await api.post(`/api/admin/cuts/${detail.cut_key}/regenerate`, body);
+      setResult(r);
+    } catch (e) { setErr(`재생성 실패: ${e.message}`); }
+    finally { setRegen(false); }
+  };
+
+  return (
+    <div style={{ overflowY: 'auto', height: '100%', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>컷 재생성 / 모델 오버라이드</div>
+
+      {/* 컷 조회 */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={cutKey} onChange={e => setCutKey(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && lookup()}
+          placeholder="cut_key (예: ep1_sc2_cut1)"
+          style={{ flex: 1, fontSize: 12, fontFamily: 'var(--font-mono)', background: 'var(--bg-2)',
+            border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', color: 'var(--text)', outline: 'none' }} />
+        <button onClick={lookup} disabled={loading}
+          style={{ fontSize: 12, padding: '8px 16px', borderRadius: 7, border: 'none', cursor: 'pointer',
+            background: 'var(--surface-2)', color: 'var(--text-3)', fontWeight: 700 }}>
+          {loading ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : '조회'}
+        </button>
+      </div>
+
+      {err && <div style={{ fontSize: 11, color: 'var(--rose)' }}>{err}</div>}
+
+      {/* 컷 상세 */}
+      {detail && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-4)' }}>
+            {detail.project_title} › {detail.short_title} › {detail.cut_key}
+          </div>
+
+          {/* 현재 영상 */}
+          {detail.video_path && (
+            <video src={resolveVideoUrl(detail.project_id, detail.short_id, detail.video_path)}
+              controls style={{ width: 120, aspectRatio: '9/16', borderRadius: 6, background: '#000' }} />
+          )}
+
+          {/* 모델 선택 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)' }}>모델</label>
+            <select value={selModel} onChange={e => setSelModel(e.target.value)}
+              style={{ fontSize: 11, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '6px 8px' }}>
+              <option value="">변경 안함 (현재: {detail.model || '미설정'})</option>
+              {models.map(m => <option key={m} value={m}>{m.split('/').slice(-2).join('/')}</option>)}
+            </select>
+          </div>
+
+          {/* 프롬프트 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)' }}>Video Prompt (선택)</label>
+            <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
+              style={{ fontSize: 11, fontFamily: 'var(--font-mono)', background: 'var(--bg-2)',
+                border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px',
+                color: 'var(--text)', resize: 'vertical', outline: 'none' }} />
+          </div>
+
+          {/* 시드 */}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)' }}>Seed (선택)</label>
+              <input value={seed} onChange={e => setSeed(e.target.value)} type="number"
+                placeholder={`현재: ${detail.seed ?? '없음'}`}
+                style={{ fontSize: 11, fontFamily: 'var(--font-mono)', background: 'var(--bg-2)',
+                  border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px',
+                  color: 'var(--text)', width: 160, outline: 'none' }} />
+            </div>
+            <button onClick={handleRegen} disabled={regen}
+              style={{ marginTop: 18, fontSize: 12, padding: '8px 20px', borderRadius: 8, border: 'none', cursor: regen ? 'wait' : 'pointer',
+                background: regen ? 'var(--surface-2)' : 'var(--rose)', color: regen ? 'var(--text-4)' : '#fff', fontWeight: 700,
+                display: 'flex', alignItems: 'center', gap: 6 }}>
+              {regen ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />재생성 중...</> : '재생성'}
+            </button>
+          </div>
+
+          {result && (
+            <div style={{ fontSize: 11, color: 'var(--mint)', background: 'color-mix(in oklch, var(--mint) 10%, var(--surface))', border: '1px solid color-mix(in oklch, var(--mint) 30%, var(--border))', borderRadius: 7, padding: '10px 14px' }}>
+              ✓ 재생성 큐 추가됨 — cut_key: {result.cut_key}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 /* ══ 메인 AdminView ════════════════════════════════════════════════════════ */
 
 export const AdminView = () => {
-  const [tab, setTab]               = React.useState('videos');  // videos | rag
+  const [tab, setTab]               = React.useState('videos');  // videos | rag | bg
   const [videos, setVideos]         = React.useState([]);
   const [total, setTotal]           = React.useState(0);
   const [loading, setLoading]       = React.useState(true);
@@ -794,6 +1508,30 @@ export const AdminView = () => {
             color: tab === 'rag' ? '#fff' : 'var(--text-3)' }}>
           <Icon name="database" size={11} style={{ marginRight: 4 }} />RAG 관리
         </button>
+        <button onClick={() => setTab('bg')}
+          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: tab === 'bg' ? '#64748b' : 'var(--surface-2)',
+            color: tab === 'bg' ? '#fff' : 'var(--text-3)' }}>
+          🏞️ 배경 임베딩
+        </button>
+        <button onClick={() => setTab('users')}
+          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: tab === 'users' ? 'var(--mint)' : 'var(--surface-2)',
+            color: tab === 'users' ? '#000' : 'var(--text-3)' }}>
+          👥 유저 관리
+        </button>
+        <button onClick={() => setTab('analytics')}
+          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: tab === 'analytics' ? '#f59e0b' : 'var(--surface-2)',
+            color: tab === 'analytics' ? '#000' : 'var(--text-3)' }}>
+          📊 분석
+        </button>
+        <button onClick={() => setTab('regen')}
+          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: tab === 'regen' ? 'var(--rose)' : 'var(--surface-2)',
+            color: tab === 'regen' ? '#fff' : 'var(--text-3)' }}>
+          🔁 재생성
+        </button>
 
         <div style={{ flex: 1 }} />
 
@@ -821,6 +1559,18 @@ export const AdminView = () => {
 
       {/* RAG 탭 */}
       {tab === 'rag' && <RagAdminTab />}
+
+      {/* 배경 임베딩 탭 */}
+      {tab === 'bg' && <BgEmbedTab />}
+
+      {/* 유저 관리 탭 */}
+      {tab === 'users' && <UsersTab />}
+
+      {/* 분석 탭 */}
+      {tab === 'analytics' && <AnalyticsTab />}
+
+      {/* 재생성 탭 */}
+      {tab === 'regen' && <RegenerateTab />}
 
       {/* 영상 태깅 그리드 */}
       {tab === 'videos' && (
