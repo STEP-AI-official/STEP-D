@@ -611,7 +611,10 @@ const FusionAnimation = () => (
 /* ── 쇼케이스 페이지 ── */
 // { id, title, desc, tag, thumbnail_url, video_url }
 const SHOWCASE_ITEMS = [
-  { id: '1', title: '', desc: '', tag: '', thumbnail_url: '', video_url: '/showcase/DTU_EP4_260429_1.mp4' },
+  { id: '1', title: '', desc: '', tag: '', thumbnail_url: '', video_url: '/showcase/show1.mp4' },
+  { id: '2', title: '', desc: '', tag: '', thumbnail_url: '', video_url: '/showcase/show2.mp4' },
+  { id: '3', title: '', desc: '', tag: '', thumbnail_url: '', video_url: '/showcase/show3.mp4' },
+  { id: '4', title: '', desc: '', tag: '', thumbnail_url: '', video_url: '/showcase/show4.mp4' },
 ];
 
 const SHOWCASE_CSS = `
@@ -620,17 +623,19 @@ const SHOWCASE_CSS = `
 .sc-hero-card:hover .sc-hero-info { transform: translateY(0) !important; opacity: 1 !important; }
 .sc-grid-card:hover .sc-grid-overlay { opacity: 1 !important; }
 .sc-grid-card:hover .sc-grid-info { transform: translateY(0) !important; opacity: 1 !important; }
-.sc-grid-card:hover .sc-grid-thumb { transform: scale(1.06) !important; }
+.sc-grid-card:hover .sc-grid-thumb { transform: scale(1.04) !important; }
+.sc-grid-card { transition: box-shadow 0.35s ease !important; }
+.sc-grid-card:hover { box-shadow: 0 24px 64px rgba(0,0,0,0.8) !important; }
 `;
 
 const ShowcaseHeroCard = ({ item, onLogin }) => {
   const videoRef = React.useRef(null);
   const [hovered, setHovered] = React.useState(false);
+  // 히어로는 마운트 시 자동재생
   React.useEffect(() => {
-    if (!videoRef.current) return;
-    if (hovered && item.video_url) videoRef.current.play().catch(() => {});
-    else { videoRef.current.pause(); videoRef.current.currentTime = 0; }
-  }, [hovered, item.video_url]);
+    if (!videoRef.current || !item.video_url) return;
+    videoRef.current.play().catch(() => {});
+  }, [item.video_url]);
 
   return (
     <div className="sc-hero-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
@@ -640,7 +645,7 @@ const ShowcaseHeroCard = ({ item, onLogin }) => {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease', transform: hovered ? 'scale(1.04)' : 'scale(1)' }} />
       )}
       {item.video_url && (
-        <video ref={videoRef} src={item.video_url} muted loop playsInline
+        <video ref={videoRef} src={item.video_url} muted loop playsInline autoPlay
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: hovered ? 1 : 0, transition: 'opacity 0.5s' }} />
       )}
       {/* 상시 그라디언트 */}
