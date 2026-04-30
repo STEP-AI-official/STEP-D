@@ -1,4 +1,6 @@
-const BASE = '/api/admin';
+const BASE = import.meta.env.DEV
+  ? '/api/admin'
+  : `${import.meta.env.VITE_API_BASE_URL}/api/admin`;
 
 const req = async (method, path, body) => {
   const r = await fetch(BASE + path, {

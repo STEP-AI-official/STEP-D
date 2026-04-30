@@ -48,9 +48,9 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--mint)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 13, color: '#000' }}>S</div>
           <span style={{ fontWeight: 700, fontSize: 15 }}>STEP D</span>
-          <span style={{ fontSize: 11, color: 'var(--text3)', padding: '2px 7px', background: 'var(--rose-dim)', color: 'var(--rose)', borderRadius: 20, fontWeight: 600 }}>ADMIN</span>
+          <span style={{ fontSize: 11, padding: '2px 7px', background: 'var(--rose-dim)', color: 'var(--rose)', borderRadius: 20, fontWeight: 600 }}>ADMIN</span>
         </div>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)' }}>localhost:8766</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)' }}>{import.meta.env.VITE_API_BASE_URL || 'localhost:8766'}</span>
       </header>
 
       {/* Sidebar */}
