@@ -1,6 +1,6 @@
 import React from 'react';
 import { Topbar, Sidebar } from './components/Chrome';
-import { loadAuth } from './lib/auth';
+import { loadAuth, handleRedirectResult, saveAuth } from './lib/auth';
 import { LoginModal } from './components/Chrome';
 import { Dashboard } from './components/Dashboard';
 import { CanvasView } from './components/CanvasView';
@@ -36,6 +36,17 @@ const App = () => {
   const [tweaks, setTweaks] = React.useState(TWEAK_DEFAULTS);
   const [user, setUser] = React.useState(() => loadAuth().user || null);
   const [loginOpen, setLoginOpen] = React.useState(false);
+
+  // Google 리다이렉트 로그인 복귀 처리
+  React.useEffect(() => {
+    handleRedirectResult()
+      .then(result => {
+        if (!result) return;
+        saveAuth(result.token, result.user);
+        window.location.reload();
+      })
+      .catch(err => console.warn('redirect result error:', err));
+  }, []);
 
   React.useEffect(() => { applyTweaks(tweaks); }, []);
 

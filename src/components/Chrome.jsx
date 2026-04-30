@@ -14,14 +14,9 @@ export function LoginModal({ open, onClose, onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const { token, user } = await signInWithGoogle();
-      saveAuth(token, user);
-      onLogin(user);
-      onClose();
+      await signInWithGoogle(); // 리다이렉트 → 페이지 이동, 이하 실행 안 됨
     } catch (e) {
-      if (e?.code === 'auth/popup-closed-by-user') { setLoading(false); return; }
       setError('로그인에 실패했습니다. 다시 시도해주세요.');
-    } finally {
       setLoading(false);
     }
   };
