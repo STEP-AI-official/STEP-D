@@ -14,7 +14,7 @@ const CHUNK_LIMIT = 50;
 
 // ── 통계 카드 ─────────────────────────────────────────────────────────────
 const StatsCards = ({ stats }) => {
-  if (!stats) return null;
+  if (!stats || !Array.isArray(stats) || stats.length === 0) return null;
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
       {stats.map(s => (
@@ -185,7 +185,8 @@ export const Rag = () => {
   const loadStats = async () => {
     try {
       const data = await api.get('/rag/stats');
-      setStats(data.by_category || []);
+      const cats = data.by_category ?? data.stats ?? data;
+      setStats(Array.isArray(cats) ? cats : []);
     } catch (e) { console.error(e); }
   };
 
