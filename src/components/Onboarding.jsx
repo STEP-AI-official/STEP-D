@@ -646,7 +646,7 @@ const ShowcaseHeroCard = ({ item, onLogin }) => {
       )}
       {item.video_url && (
         <video ref={videoRef} src={item.video_url} muted loop playsInline autoPlay
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: hovered ? 1 : 0, transition: 'opacity 0.5s' }} />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       )}
       {/* 상시 그라디언트 */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
@@ -678,8 +678,10 @@ const ShowcaseGridCard = ({ item }) => {
   const [hovered, setHovered] = React.useState(false);
   React.useEffect(() => {
     if (!videoRef.current) return;
+    // 첫 프레임을 썸네일로 보이게
+    videoRef.current.currentTime = 0.1;
     if (hovered && item.video_url) videoRef.current.play().catch(() => {});
-    else { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+    else { videoRef.current.pause(); videoRef.current.currentTime = 0.1; }
   }, [hovered, item.video_url]);
 
   return (
@@ -690,13 +692,8 @@ const ShowcaseGridCard = ({ item }) => {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }} />
       )}
       {item.video_url && (
-        <video ref={videoRef} src={item.video_url} muted loop playsInline
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: hovered ? 1 : 0, transition: 'opacity 0.4s' }} />
-      )}
-      {!item.thumbnail_url && (
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #0f0f1a)', display: 'grid', placeItems: 'center' }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"><path d="M15 10l4.553-2.669A1 1 0 0121 8.232v7.536a1 1 0 01-1.447.899L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
-        </div>
+        <video ref={videoRef} src={item.video_url} muted loop playsInline preload="metadata"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 1, transition: 'opacity 0.4s' }} />
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 55%)' }} />
       <div className="sc-grid-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.1)', opacity: 0, transition: 'opacity 0.3s' }} />
