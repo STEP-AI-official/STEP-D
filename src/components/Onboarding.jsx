@@ -609,193 +609,184 @@ const FusionAnimation = () => (
 );
 
 /* ── 쇼케이스 페이지 ── */
-const ShowcaseCard = ({ item }) => {
+// { id, title, desc, tag, thumbnail_url, video_url }
+const SHOWCASE_ITEMS = [
+  // 예시:
+  // { id: '1', title: '조선시대 마지막 어의', desc: '역사 속 숨겨진 의관의 이야기', tag: 'HISTORY', thumbnail_url: '/showcase/thumb1.jpg', video_url: '/showcase/video1.mp4' },
+];
+
+const SHOWCASE_CSS = `
+@keyframes sc-fade-up { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+.sc-hero-card:hover .sc-hero-overlay { opacity: 1 !important; }
+.sc-hero-card:hover .sc-hero-info { transform: translateY(0) !important; opacity: 1 !important; }
+.sc-grid-card:hover .sc-grid-overlay { opacity: 1 !important; }
+.sc-grid-card:hover .sc-grid-info { transform: translateY(0) !important; opacity: 1 !important; }
+.sc-grid-card:hover .sc-grid-thumb { transform: scale(1.06) !important; }
+`;
+
+const ShowcaseHeroCard = ({ item, onLogin }) => {
   const videoRef = React.useRef(null);
   const [hovered, setHovered] = React.useState(false);
-
   React.useEffect(() => {
     if (!videoRef.current) return;
     if (hovered && item.video_url) videoRef.current.play().catch(() => {});
-    else if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+    else { videoRef.current.pause(); videoRef.current.currentTime = 0; }
   }, [hovered, item.video_url]);
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative', borderRadius: 14, overflow: 'hidden',
-        aspectRatio: '16/9',
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        cursor: 'pointer',
-        transition: 'transform 0.22s, box-shadow 0.22s',
-        transform: hovered ? 'scale(1.03)' : 'scale(1)',
-        boxShadow: hovered ? '0 24px 56px rgba(0,0,0,0.6)' : '0 6px 20px rgba(0,0,0,0.3)',
-      }}
-    >
+    <div className="sc-hero-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', aspectRatio: '16/9', cursor: 'pointer', background: '#111' }}>
       {item.thumbnail_url && (
         <img src={item.thumbnail_url} alt={item.title}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.6s ease', transform: hovered ? 'scale(1.04)' : 'scale(1)' }} />
       )}
       {item.video_url && (
         <video ref={videoRef} src={item.video_url} muted loop playsInline
-          style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
-            opacity: hovered ? 1 : 0, transition: 'opacity 0.3s',
-          }} />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: hovered ? 1 : 0, transition: 'opacity 0.5s' }} />
       )}
-      {!item.thumbnail_url && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(160deg, var(--surface-2), var(--bg-2))',
-          display: 'grid', placeItems: 'center',
-        }}>
-          <Ico name="film" size={32} color="var(--text-4)" />
+      {/* 상시 그라디언트 */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
+      {/* 호버 오버레이 */}
+      <div className="sc-hero-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)', opacity: 0, transition: 'opacity 0.3s' }} />
+      {/* 태그 */}
+      {item.tag && (
+        <div style={{ position: 'absolute', top: 24, left: 28, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.2)', fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: '#fff' }}>
+          {item.tag}
         </div>
       )}
-      {/* 재생 아이콘 */}
-      <div style={{
-        position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-        opacity: hovered ? 1 : 0, transition: 'opacity 0.2s',
-        background: 'rgba(0,0,0,0.2)',
-      }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.88)',
-          display: 'grid', placeItems: 'center',
-        }}>
-          <Ico name="play" size={18} color="#000" />
+      {/* 재생 버튼 */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: hovered ? 1 : 0, transition: 'opacity 0.25s' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(16px)', border: '1.5px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
         </div>
       </div>
-      {/* 하단 메타 */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        padding: '28px 12px 12px',
-        background: 'linear-gradient(to top, rgba(0,0,0,0.88), transparent)',
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
-          {item.title}
-        </div>
+      {/* 하단 정보 */}
+      <div className="sc-hero-info" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '40px 28px 28px', transform: 'translateY(8px)', opacity: 0.85, transition: 'transform 0.35s ease, opacity 0.35s ease' }}>
+        <div style={{ fontSize: 'clamp(18px, 2.5vw, 28px)', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 8 }}>{item.title}</div>
+        {item.desc && <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>{item.desc}</div>}
       </div>
-      {/* 상단 배지 */}
-      <div style={{
-        position: 'absolute', top: 10, left: 10,
-        padding: '3px 8px', borderRadius: 999,
-        background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
-        fontSize: 9, fontFamily: 'monospace', fontWeight: 700,
-        color: '#fff', letterSpacing: '0.08em',
-      }}>16:9 · AI</div>
     </div>
   );
 };
 
-// 쇼케이스에 표시할 영상/이미지를 여기에 추가하세요
-// { id, title, thumbnail_url, video_url } — video_url은 없어도 됩니다
-const SHOWCASE_ITEMS = [
-  // 예시: { id: '1', title: '조선시대 마지막 어의', thumbnail_url: '/showcase/thumb1.jpg', video_url: '/showcase/video1.mp4' },
-];
+const ShowcaseGridCard = ({ item }) => {
+  const videoRef = React.useRef(null);
+  const [hovered, setHovered] = React.useState(false);
+  React.useEffect(() => {
+    if (!videoRef.current) return;
+    if (hovered && item.video_url) videoRef.current.play().catch(() => {});
+    else { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+  }, [hovered, item.video_url]);
+
+  return (
+    <div className="sc-grid-card" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', aspectRatio: '16/9', cursor: 'pointer', background: '#111', boxShadow: hovered ? '0 20px 60px rgba(0,0,0,0.7)' : '0 4px 20px rgba(0,0,0,0.4)', transition: 'box-shadow 0.3s' }}>
+      {item.thumbnail_url && (
+        <img src={item.thumbnail_url} alt={item.title} className="sc-grid-thumb"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }} />
+      )}
+      {item.video_url && (
+        <video ref={videoRef} src={item.video_url} muted loop playsInline
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: hovered ? 1 : 0, transition: 'opacity 0.4s' }} />
+      )}
+      {!item.thumbnail_url && (
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #0f0f1a)', display: 'grid', placeItems: 'center' }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"><path d="M15 10l4.553-2.669A1 1 0 0121 8.232v7.536a1 1 0 01-1.447.899L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+        </div>
+      )}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 55%)' }} />
+      <div className="sc-grid-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.1)', opacity: 0, transition: 'opacity 0.3s' }} />
+      {item.tag && (
+        <div style={{ position: 'absolute', top: 12, left: 12, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.8)' }}>
+          {item.tag}
+        </div>
+      )}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: hovered ? 1 : 0, transition: 'opacity 0.2s' }}>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+      </div>
+      <div className="sc-grid-info" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '32px 14px 14px', transform: 'translateY(6px)', opacity: 0.8, transition: 'transform 0.3s ease, opacity 0.3s ease' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.01em' }}>{item.title}</div>
+        {item.desc && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4, lineHeight: 1.4 }}>{item.desc}</div>}
+      </div>
+    </div>
+  );
+};
 
 const ShowcasePage = ({ onLogin, onNav, onContact }) => {
   const isMobile = useIsMobile();
   const items = SHOWCASE_ITEMS;
+  const hero = items[0] ?? null;
+  const rest = items.slice(1);
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden',
-      background: 'var(--bg)', userSelect: 'none',
-    }}>
+    <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', background: '#0a0a0f', userSelect: 'none' }}>
+      <style>{SHOWCASE_CSS}</style>
       <InjectStyle />
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none',
-        background: `
-          radial-gradient(800px 500px at 80% 10%, color-mix(in oklch, var(--mint) 14%, transparent), transparent 60%),
-          radial-gradient(700px 500px at 10% 80%, color-mix(in oklch, var(--violet) 14%, transparent), transparent 60%)
-        `,
-      }} />
 
       <TopBar onLogin={onLogin} onNav={onNav} onContact={onContact} activePage="showcase" />
 
-      <div style={{
-        position: 'relative', zIndex: 1,
-        maxWidth: 1200, margin: '0 auto',
-        padding: isMobile ? '90px 16px 48px' : '100px 32px 64px',
-      }}>
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto', padding: isMobile ? '88px 16px 64px' : '96px 40px 80px' }}>
+
         {/* 헤더 */}
-        <div style={{ textAlign: 'center', marginBottom: isMobile ? 32 : 48, animation: 'fade-in-up 0.5s ease both' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px', borderRadius: 999, marginBottom: 20,
-            background: 'color-mix(in oklch, var(--mint) 10%, var(--surface))',
-            border: '1px solid color-mix(in oklch, var(--mint) 30%, var(--border))',
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--mint)', animation: 'pulse-soft 1.5s ease infinite' }} />
-            <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: 'var(--mint)', letterSpacing: '0.08em' }}>
-              MADE WITH AI
-            </span>
+        <div style={{ marginBottom: isMobile ? 32 : 48, animation: 'sc-fade-up 0.5s ease both' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 1, height: 32, background: 'var(--mint)' }} />
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', color: 'var(--mint)', textTransform: 'uppercase' }}>Showcase</span>
           </div>
-          <h1 style={{
-            fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 800, margin: '0 0 16px',
-            letterSpacing: '-0.035em', lineHeight: 1.05,
-          }}>
-            AI가 만든 다큐 쇼츠
+          <h1 style={{ fontSize: isMobile ? 28 : 'clamp(36px, 4vw, 56px)', fontWeight: 900, margin: '0 0 10px', letterSpacing: '-0.04em', lineHeight: 1, color: '#fff' }}>
+            AI가 만든<br />다큐멘터리
           </h1>
-          <p style={{ fontSize: 16, color: 'var(--text-3)', margin: 0, lineHeight: 1.6 }}>
-            한 줄 프롬프트로 시작해 완성된 영상들입니다.
-          </p>
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', margin: 0 }}>한 줄 프롬프트에서 완성된 영상까지</p>
         </div>
 
-        {/* 갤러리 */}
         {items.length === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: '80px 0',
-            color: 'var(--text-4)', fontSize: 15,
-          }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>🎬</div>
-            아직 완성된 영상이 없습니다.<br />
-            <button onClick={onLogin} style={{
-              marginTop: 24, display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '12px 28px', borderRadius: 12, border: 'none',
-              background: 'var(--mint)', color: '#0a0a0f',
-              fontSize: 14, fontWeight: 800, cursor: 'pointer',
-            }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 20 }}>
+            <div style={{ width: 80, height: 80, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', display: 'grid', placeItems: 'center' }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5"><path d="M15 10l4.553-2.669A1 1 0 0121 8.232v7.536a1 1 0 01-1.447.899L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, margin: 0 }}>곧 공개됩니다</p>
+            <button onClick={onLogin} style={{ marginTop: 8, padding: '12px 32px', borderRadius: 999, border: 'none', background: 'var(--mint)', color: '#0a0a0f', fontSize: 13, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.02em' }}>
               지금 만들어보기 →
             </button>
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 240 : 320}px, 1fr))`,
-            gap: isMobile ? 12 : 16,
-            animation: 'fade-in-up 0.6s 0.1s ease both',
-          }}>
-            {items.map(item => <ShowcaseCard key={item.id} item={item} />)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 24 }}>
+
+            {/* 히어로 */}
+            {hero && (
+              <div style={{ animation: 'sc-fade-up 0.6s 0.05s ease both' }}>
+                <ShowcaseHeroCard item={hero} onLogin={onLogin} />
+              </div>
+            )}
+
+            {/* 서브 그리드 */}
+            {rest.length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+                gap: isMobile ? 12 : 16,
+                animation: 'sc-fade-up 0.6s 0.15s ease both',
+              }}>
+                {rest.map(item => <ShowcaseGridCard key={item.id} item={item} />)}
+              </div>
+            )}
           </div>
         )}
 
         {/* 하단 CTA */}
         {items.length > 0 && (
-          <div style={{
-            marginTop: 64, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', gap: 14,
-            animation: 'fade-in-up 0.7s 0.2s ease both',
-          }}>
-            <button onClick={onLogin} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 12,
-              padding: '14px 36px', borderRadius: 12, border: 'none',
-              background: 'linear-gradient(135deg, var(--violet), var(--mint))',
-              color: '#0a0a0f', fontSize: 15, fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: '0 8px 32px rgba(0,212,160,0.25)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,212,160,0.35)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,212,160,0.25)'; }}
+          <div style={{ marginTop: 72, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, animation: 'sc-fade-up 0.6s 0.25s ease both' }}>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', margin: 0, letterSpacing: '0.02em' }}>직접 만들어보고 싶다면</p>
+            <button onClick={onLogin}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '13px 36px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
             >
-              <Ico name="google" size={18} />
-              나도 만들어보기
+              시작하기 →
             </button>
-            </div>
+          </div>
         )}
       </div>
     </div>
