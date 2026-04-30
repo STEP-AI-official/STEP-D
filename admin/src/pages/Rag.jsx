@@ -14,24 +14,22 @@ const CHUNK_LIMIT = 50;
 
 // ── 통계 카드 ─────────────────────────────────────────────────────────────
 const StatsCards = ({ stats }) => {
-  if (!stats || !Array.isArray(stats) || stats.length === 0) return null;
+  if (!stats || typeof stats !== 'object') return null;
+  const entries = Object.entries(stats);
+  if (entries.length === 0) return null;
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-      {stats.map(s => (
-        <div key={s.category} className="card" style={{ flex: '1 1 180px', padding: '14px 18px' }}>
-          <span className={`badge ${CAT_BADGE[s.category] || 'badge-gray'}`} style={{ marginBottom: 8, display: 'inline-block' }}>{s.category}</span>
+      {entries.map(([cat, s]) => (
+        <div key={cat} className="card" style={{ flex: '1 1 180px', padding: '14px 18px' }}>
+          <span className={`badge ${CAT_BADGE[cat] || 'badge-gray'}`} style={{ marginBottom: 8, display: 'inline-block' }}>{cat}</span>
           <div style={{ display: 'flex', gap: 20, marginTop: 6 }}>
             <div>
-              <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text1)' }}>{s.sources}</div>
+              <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text1)' }}>{s.sources ?? '-'}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>소스</div>
             </div>
             <div>
-              <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text1)' }}>{s.chunks}</div>
+              <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text1)' }}>{s.chunks ?? '-'}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>청크</div>
-            </div>
-            <div>
-              <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text1)' }}>{s.avg_chunk_chars}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>평균자수</div>
             </div>
           </div>
         </div>
@@ -185,8 +183,7 @@ export const Rag = () => {
   const loadStats = async () => {
     try {
       const data = await api.get('/rag/stats');
-      const cats = data.by_category ?? data.stats ?? data;
-      setStats(Array.isArray(cats) ? cats : []);
+      setStats(data.by_category ?? {});
     } catch (e) { console.error(e); }
   };
 

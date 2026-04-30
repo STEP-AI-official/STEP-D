@@ -2,10 +2,12 @@ import React from 'react';
 import { api } from '../api.js';
 
 const STAGE_META = {
-  scenario: { cls: 'badge-blue',   label: '시나리오' },
-  video:    { cls: 'badge-orange', label: '영상생성' },
-  audio:    { cls: 'badge-violet', label: '오디오' },
-  edit:     { cls: 'badge-gray',   label: '편집' },
+  scenario:    { cls: 'badge-blue',   label: '시나리오' },
+  cast:        { cls: 'badge-violet', label: '캐스트' },
+  scene_image: { cls: 'badge-orange', label: '이미지' },
+  scene_video: { cls: 'badge-orange', label: '영상' },
+  audio:       { cls: 'badge-violet', label: '오디오' },
+  done:        { cls: 'badge-mint',   label: '완료' },
 };
 const STATUS_META = {
   pending:    { cls: 'badge-gray',   label: '대기' },
@@ -160,9 +162,11 @@ export const Shorts = () => {
         <select value={stage} onChange={e => setStage(e.target.value)} style={{ width: 150 }}>
           <option value="">모든 stage</option>
           <option value="scenario">scenario</option>
-          <option value="video">video</option>
+          <option value="cast">cast</option>
+          <option value="scene_image">scene_image</option>
+          <option value="scene_video">scene_video</option>
           <option value="audio">audio</option>
-          <option value="edit">edit</option>
+          <option value="done">done</option>
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)} style={{ width: 150 }}>
           <option value="">모든 status</option>
