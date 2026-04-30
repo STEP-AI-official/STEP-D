@@ -611,8 +611,7 @@ const FusionAnimation = () => (
 /* ── 쇼케이스 페이지 ── */
 // { id, title, desc, tag, thumbnail_url, video_url }
 const SHOWCASE_ITEMS = [
-  // 예시:
-  // { id: '1', title: '조선시대 마지막 어의', desc: '역사 속 숨겨진 의관의 이야기', tag: 'HISTORY', thumbnail_url: '/showcase/thumb1.jpg', video_url: '/showcase/video1.mp4' },
+  { id: '1', title: '', desc: '', tag: '', thumbnail_url: '', video_url: '/showcase/DTU_EP4_260429_1.mp4' },
 ];
 
 const SHOWCASE_CSS = `
