@@ -21,3 +21,4 @@ export * as charactersApi from './characters';
 export * as scenarioApi from './scenario';
 export * as episodesApi from './episodes';
 export * as renderApi from './render';
+export * as claudeApi from './claude';

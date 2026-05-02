@@ -133,10 +133,11 @@ export const Sidebar = ({ view, setView, activeProject, activeShort, onGoHome, u
   };
 
   const items = [
-    { id: 'dashboard',  icon: 'home',   label: '대시보드' },
-    { id: 'projects',   icon: 'folder', label: '프로젝트' },
-    { id: 'templates',  icon: 'layers', label: '템플릿' },
-    { id: 'assets',     icon: 'image',  label: '에셋 라이브러리' },
+    { id: 'dashboard',  icon: 'home',            label: '대시보드' },
+    { id: 'projects',   icon: 'folder',          label: '프로젝트' },
+    { id: 'templates',  icon: 'layers',          label: '템플릿' },
+    { id: 'assets',     icon: 'image',           label: '에셋 라이브러리' },
+    { id: 'claude',     icon: 'message-square',  label: 'Claude' },
   ];
 
   const stage = activeShort?.stage;

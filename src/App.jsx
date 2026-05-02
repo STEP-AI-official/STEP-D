@@ -14,6 +14,7 @@ import { NewProjectWizard } from './components/NewProjectWizard';
 import { TweaksPanel, TWEAK_DEFAULTS, applyTweaks } from './components/TweaksPanel';
 import { ProjectHomeView } from './components/ProjectHomeView';
 import { ImageGenChatView } from './components/ImageGenChatView';
+import { ClaudeView } from './components/ClaudeView';
 import { APP_DATA } from './data';
 import { api } from './api';
 import { ProgressBanner } from './components/ProgressBanner';
@@ -139,7 +140,7 @@ const App = () => {
 
   const crumbs = (() => {
     if (!activeProject) {
-      const labels = { dashboard: '대시보드', projects: '프로젝트', templates: '템플릿', assets: '에셋 라이브러리' };
+      const labels = { dashboard: '대시보드', projects: '프로젝트', templates: '템플릿', assets: '에셋 라이브러리', claude: 'Claude' };
       return [labels[view] || '대시보드'];
     }
     const labels = { home: '프로젝트 홈', canvas: '워크플로우', script: '시나리오', characters: '등장인물', background: '배경 / 구도', imagechat: 'AI 이미지 생성', 'scene-image': '씬 이미지', render: '씬 영상', export: '합성·내보내기' };
@@ -147,9 +148,13 @@ const App = () => {
   })();
 
   let content;
-  if (!activeProject || ['dashboard', 'projects', 'templates', 'assets'].includes(view)) {
-    content = <Dashboard projects={projects} loading={projectsLoading} onOpenProject={openProject} onNew={() => setShowWizard(true)} onRefresh={loadProjects}
-      onDeleteProject={(pid) => { setProjects(prev => prev.filter(p => p.id !== pid)); }} />;
+  if (!activeProject || ['dashboard', 'projects', 'templates', 'assets', 'claude'].includes(view)) {
+    if (view === 'claude') {
+      content = <ClaudeView />;
+    } else {
+      content = <Dashboard projects={projects} loading={projectsLoading} onOpenProject={openProject} onNew={() => setShowWizard(true)} onRefresh={loadProjects}
+        onDeleteProject={(pid) => { setProjects(prev => prev.filter(p => p.id !== pid)); }} />;
+    }
   } else if (view === 'home') {
     content = <ProjectHomeView project={activeProject} setView={setView} onOpenShort={openShort} />;
   } else if (view === 'canvas') {
