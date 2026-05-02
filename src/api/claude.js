@@ -38,7 +38,7 @@ export const chatSSE = async (body, onChunk, signal) => {
     for (const part of parts) {
       const line = part.replace(/^data:\s*/, '').trim();
       if (!line) continue;
-      try { onChunk(JSON.parse(line)); } catch {}
+      try { onChunk(JSON.parse(line)); } catch { /* 파싱 불가 라인은 무시 — 불완전한 청크 방어 */ }
     }
   }
 };

@@ -68,7 +68,7 @@ export const ClaudeView = () => {
             aiText = obj.text;
             setStreamText(aiText);
           } else if (obj.type === 'done') {
-            setMessages(prev => [...prev, { role: 'assistant', content: aiText || obj.text || '' }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: aiText }]);
             setStreamText('');
             aiText = '';
           } else if (obj.type === 'error') {
