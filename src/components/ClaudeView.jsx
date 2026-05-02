@@ -29,7 +29,7 @@ const Bubble = ({ msg }) => {
 };
 
 /* ── 메인 뷰 ── */
-export const ClaudeView = () => {
+export const ClaudeView = ({ standalone = false }) => {
   const [messages, setMessages] = React.useState([
     { role: 'assistant', content: '안녕하세요! Claude입니다. 시나리오 작성, 아이디어 구체화, 대사 교정 등 무엇이든 도와드릴게요.' },
   ]);
@@ -101,17 +101,25 @@ export const ClaudeView = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: standalone ? '100vh' : '100%', overflow: 'hidden', background: standalone ? 'var(--bg)' : undefined }}>
       {/* 헤더 */}
-      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', padding: '0 24px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, height: 50 }}>
+      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', padding: standalone ? '0 32px' : '0 24px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, height: standalone ? 56 : 50 }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--violet-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="message-square" size={14} style={{ color: 'var(--violet)' }} />
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Claude</div>
+          <div style={{ fontSize: standalone ? 15 : 13, fontWeight: 700 }}>Claude</div>
           <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: -1 }}>Anthropic · AI 어시스턴트</div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {standalone && (
+            <a href="/" style={{ fontSize: 11, color: 'var(--text-4)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-2)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-4)'}>
+              <Icon name="home" size={12} />
+              STEP D
+            </a>
+          )}
           <button
             onClick={handleClear}
             title="대화 초기화"
@@ -126,7 +134,7 @@ export const ClaudeView = () => {
       </div>
 
       {/* 메시지 영역 */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: standalone ? '24px max(24px, calc(50vw - 380px))' : '20px 24px' }}>
         {messages.map((msg, i) => <Bubble key={i} msg={msg} />)}
 
         {streamText && (
@@ -158,7 +166,7 @@ export const ClaudeView = () => {
       </div>
 
       {/* 입력창 */}
-      <div style={{ padding: '12px 20px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg-2)' }}>
+      <div style={{ padding: standalone ? '12px max(20px, calc(50vw - 380px)) 24px' : '12px 20px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg-2)' }}>
         <div
           style={{ display: 'flex', gap: 10, alignItems: 'flex-end', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 8px 8px 14px', transition: 'border-color 0.15s' }}
           onFocusCapture={e => e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)'}

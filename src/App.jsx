@@ -21,6 +21,11 @@ import { ProgressBanner } from './components/ProgressBanner';
 import { OnboardingLogin, Onboarding } from './components/Onboarding';
 
 const App = () => {
+  // /claude 경로 — 로그인 없이 외부에서 직접 접근 가능
+  if (window.location.pathname === '/claude') {
+    return <ClaudeView standalone />;
+  }
+
   const [view, setView] = React.useState(() => {
     try {
       const saved = localStorage.getItem('sf:view') || 'dashboard';
