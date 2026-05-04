@@ -156,7 +156,8 @@ const SourceListPanel = ({ catMap, ctMap, onSelect, selectedHash }) => {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/admin/rag/sources?limit=500');
+      // background_ko는 항목 수가 수천 개라 소스 브라우저에서 제외 (배경 임베딩 탭에서 별도 관리)
+      const res = await api.get('/api/admin/rag/sources?limit=200&exclude_category=background_ko');
       setSources(res.sources || []);
     } catch {}
     finally { setLoading(false); }

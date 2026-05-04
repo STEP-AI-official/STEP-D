@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/STEPAI05/shorts-mvp/web/**)",
-      "Read(//c/Users/STEPAI05/shorts-mvp//**)"
+      "Read(//c/Users/STEPAI05/shorts-mvp//**)",
+      "PowerShell($root = \"c:\\\\Users\\\\STEPAI05\\\\OneDrive\\\\Desktop\\\\STEP D front\"; Get-ChildItem -Path \"$root\" -File | Select-Object Name | Format-Table -HideTableHeaders)"
     ]
   }
 }

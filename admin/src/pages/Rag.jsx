@@ -150,6 +150,219 @@ const ChunksDrawer = ({ source, onClose }) => {
   );
 };
 
+// ── AI Hub 배경 데이터셋 임포트 패널 ──────────────────────────────────────
+//
+// 서버 디스크의 BG_RAG_DATA_ROOT 아래 디렉토리/파일을 지정해 background_ko 임포트.
+// 백엔드 worker thread가 처리하며 job_id를 1.5초 간격으로 폴링해 진행률 표시.
+const BackgroundIngestPanel = ({ onFinished }) => {
+  const [dataRoot, setDataRoot]   = React.useState(null);
+  const [path, setPath]           = React.useState('');
+  const [sampleSize, setSampleSize] = React.useState(50000);
+  const [shuffle, setShuffle]     = React.useState(true);
+  const [force, setForce]         = React.useState(false);
+  const [bgStats, setBgStats]     = React.useState(null);
+
+  const [job, setJob]         = React.useState(null);   // 현재 폴링 중인 job
+  const [submitting, setSubmitting] = React.useState(false);
+  const [errorMsg, setErrorMsg]     = React.useState(null);
+
+  const loadDataRoot = async () => {
+    try {
+      const r = await api.get('/rag/background/data-root');
+      setDataRoot(r);
+    } catch (e) { console.error(e); }
+  };
+
+  const loadBgStats = async () => {
+    try {
+      const r = await api.get('/rag/background/stats');
+      setBgStats(r);
+    } catch (e) { console.error(e); }
+  };
+
+  React.useEffect(() => { loadDataRoot(); loadBgStats(); }, []);
+
+  // ── 작업 폴링 ──
+  React.useEffect(() => {
+    if (!job?.id || job?.status === 'done' || job?.status === 'error') return;
+    const t = setInterval(async () => {
+      try {
+        const j = await api.get(`/rag/background/jobs/${job.id}`);
+        setJob(j);
+        if (j.status === 'done' || j.status === 'error') {
+          loadBgStats();
+          if (onFinished) onFinished();
+        }
+      } catch (e) { console.error(e); }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [job?.id, job?.status]);
+
+  const start = async () => {
+    if (!path.trim()) { setErrorMsg('경로를 입력하세요'); return; }
+    setSubmitting(true); setErrorMsg(null); setJob(null);
+    try {
+      const r = await api.post('/rag/background/ingest-path', {
+        path:        path.trim(),
+        sample_size: sampleSize > 0 ? sampleSize : null,
+        shuffle:     shuffle,
+        force:       force,
+      });
+      const j = await api.get(`/rag/background/jobs/${r.job_id}`);
+      setJob(j);
+    } catch (e) {
+      setErrorMsg(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isRunning = job && (job.status === 'pending' || job.status === 'running');
+  const progress  = job?.progress || {};
+  const processedFiles = progress.processed_files ?? 0;
+  const totalFiles     = progress.total_files     ?? 0;
+  const insertedNow    = progress.inserted        ?? 0;
+  const skippedNow     = progress.skipped         ?? 0;
+  const filePct = totalFiles > 0 ? (processedFiles * 100 / totalFiles) : 0;
+  const samplePct = (sampleSize > 0 && insertedNow > 0)
+    ? Math.min(100, insertedNow * 100 / sampleSize) : 0;
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="flex" style={{ marginBottom: 12, alignItems: 'center' }}>
+        <div style={{ fontWeight: 600 }}>AI Hub 배경 데이터셋 임포트 (background_ko)</div>
+        {bgStats && (
+          <div className="ml-auto" style={{ fontSize: 12, color: 'var(--text3)' }}>
+            현재 청크 <span className="mono" style={{ color: 'var(--mint)' }}>{bgStats.chunks?.toLocaleString() ?? 0}</span>
+            {' · '}소스 <span className="mono" style={{ color: 'var(--text2)' }}>{bgStats.sources ?? 0}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 데이터 루트 안내 */}
+      {dataRoot === null ? (
+        <div className="text-muted" style={{ fontSize: 12 }}>데이터 루트 확인 중...</div>
+      ) : !dataRoot.configured ? (
+        <div style={{ background: 'var(--rose-dim)', color: 'var(--rose)', borderRadius: 6, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>
+          BG_RAG_DATA_ROOT 환경변수가 설정되지 않았습니다. 서버에 데이터를 올린 후 환경변수를 지정하세요.
+        </div>
+      ) : !dataRoot.exists ? (
+        <div style={{ background: 'var(--rose-dim)', color: 'var(--rose)', borderRadius: 6, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>
+          BG_RAG_DATA_ROOT 경로가 존재하지 않습니다: <span className="mono">{dataRoot.root}</span>
+        </div>
+      ) : (
+        <div style={{ background: 'var(--bg2)', borderRadius: 6, padding: '10px 12px', fontSize: 12, marginBottom: 12 }}>
+          <div style={{ color: 'var(--text3)', marginBottom: 6 }}>데이터 루트: <span className="mono" style={{ color: 'var(--text2)' }}>{dataRoot.root}</span></div>
+          {dataRoot.entries?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {dataRoot.entries.slice(0, 16).map(e => (
+                <button key={e.name} className="btn btn-ghost btn-sm" onClick={() => setPath(e.name)}
+                  title={e.is_dir ? '디렉토리' : `${e.size?.toLocaleString()} bytes`}
+                  style={{ fontSize: 11, padding: '3px 8px' }}>
+                  {e.is_dir ? '📁 ' : '📄 '}{e.name}
+                </button>
+              ))}
+              {dataRoot.entries.length > 16 && <span className="text-muted" style={{ fontSize: 11 }}>+{dataRoot.entries.length - 16} more</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 입력 폼 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 10, marginBottom: 10 }}>
+        <input
+          value={path}
+          onChange={e => setPath(e.target.value)}
+          placeholder="데이터 경로 (예: aihub_71784/Training/label)"
+          disabled={isRunning}
+        />
+        <input
+          type="number" min={0} step={1000}
+          value={sampleSize}
+          onChange={e => setSampleSize(parseInt(e.target.value) || 0)}
+          placeholder="샘플 크기 (0=전체)"
+          disabled={isRunning}
+        />
+      </div>
+
+      <div className="flex gap-8" style={{ marginBottom: 10 }}>
+        <label className="flex gap-8" style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+          <input type="checkbox" checked={shuffle} onChange={e => setShuffle(e.target.checked)} disabled={isRunning} style={{ width: 'auto' }} />
+          파일 셔플 (샘플 편향 감소)
+        </label>
+        <label className="flex gap-8" style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+          <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} disabled={isRunning} style={{ width: 'auto' }} />
+          force 재적재
+        </label>
+        <button className="btn btn-primary btn-sm ml-auto" disabled={submitting || isRunning || !path.trim()} onClick={start}>
+          {submitting ? <><span className="spinner" style={{ width: 10, height: 10 }} /> 시작 중...</>
+            : isRunning ? '진행 중...' : '임포트 시작'}
+        </button>
+      </div>
+
+      {errorMsg && (
+        <div style={{ background: 'var(--rose-dim)', color: 'var(--rose)', borderRadius: 6, padding: '8px 10px', fontSize: 12, marginBottom: 10 }}>
+          {errorMsg}
+        </div>
+      )}
+
+      {/* 진행률 */}
+      {job && (
+        <div style={{ background: 'var(--bg2)', borderRadius: 6, padding: '12px 14px', fontSize: 12 }}>
+          <div className="flex" style={{ marginBottom: 8, alignItems: 'center' }}>
+            <span className={`badge ${job.status === 'done' ? 'badge-mint' : job.status === 'error' ? 'badge-orange' : 'badge-blue'}`}>
+              {job.status}
+            </span>
+            <span className="mono ml-auto" style={{ color: 'var(--text3)', fontSize: 11 }}>{job.id}</span>
+          </div>
+
+          {/* 파일 진행 */}
+          {totalFiles > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div className="flex" style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>
+                <span>파일 {processedFiles.toLocaleString()} / {totalFiles.toLocaleString()}</span>
+                <span className="ml-auto mono">{filePct.toFixed(1)}%</span>
+              </div>
+              <div style={{ height: 4, background: 'var(--bg3)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${filePct}%`, background: 'var(--blue)', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )}
+
+          {/* 샘플(또는 적재) 진행 */}
+          {sampleSize > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div className="flex" style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>
+                <span>적재 {insertedNow.toLocaleString()} / 목표 {sampleSize.toLocaleString()}</span>
+                <span className="ml-auto mono">{samplePct.toFixed(1)}%</span>
+              </div>
+              <div style={{ height: 4, background: 'var(--bg3)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${samplePct}%`, background: 'var(--mint)', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text3)' }}>
+            <span>적재 <span className="mono" style={{ color: 'var(--mint)' }}>{insertedNow.toLocaleString()}</span></span>
+            <span>스킵 <span className="mono" style={{ color: 'var(--text2)' }}>{skippedNow.toLocaleString()}</span></span>
+            {progress.phase && <span>phase <span className="mono">{progress.phase}</span></span>}
+          </div>
+
+          {job.status === 'done' && job.result && (
+            <div style={{ marginTop: 8, color: 'var(--mint)' }}>
+              ✓ 완료 — files={job.result.total_files?.toLocaleString()}, inserted={job.result.total_inserted?.toLocaleString()}, skipped={job.result.total_skipped?.toLocaleString()}
+              {job.result.stopped_early && ' (샘플 도달로 조기 종료)'}
+            </div>
+          )}
+          {job.status === 'error' && (
+            <div style={{ marginTop: 8, color: 'var(--rose)' }}>✗ 오류: {job.error}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── 메인 페이지 ───────────────────────────────────────────────────────────
 export const Rag = () => {
   // 통계
@@ -255,6 +468,9 @@ export const Rag = () => {
 
       {/* 통계 카드 */}
       <StatsCards stats={stats} />
+
+      {/* AI Hub 배경 데이터셋 임포트 (background_ko) */}
+      <BackgroundIngestPanel onFinished={loadStats} />
 
       {/* 수집 + 검색 2열 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 28 }}>

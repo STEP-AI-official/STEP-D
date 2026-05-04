@@ -38,11 +38,28 @@ export const getCut = (pid, shortId, cutKey) =>
  *   action?: string,
  *   char_keys?: string[],
  *   composition_id?: number | null,
- *   duration_sec?: number
+ *   duration_sec?: number,
+ *   shot_size?: string,
+ *   angle?: string,
+ *   camera_movement?: string,
+ *   camera_speed?: string,
  * }} patch
  */
 export const updateCut = (pid, shortId, cutKey, patch) =>
   http.patch(`/api/projects/${pid}/shorts/${shortId}/cuts/${cutKey}`, patch);
+
+/**
+ * 카메라 구도 옵션 카탈로그 조회 (드롭다운용).
+ * 각 항목은 { value, label_ko, label_en }. value=""는 자동(AI 추천).
+ * @returns {{
+ *   shot_size:        Array<{value:string,label_ko:string,label_en:string}>,
+ *   angle:            Array<{value:string,label_ko:string,label_en:string}>,
+ *   camera_movement:  Array<{value:string,label_ko:string,label_en:string}>,
+ *   speed:            Array<{value:string,label_ko:string,label_en:string}>,
+ *   structured_camera_keys: string[],
+ * }}
+ */
+export const getCameraOptions = () => http.get('/api/camera/options');
 
 /** 컷 삭제 */
 export const deleteCut = (pid, shortId, cutKey) =>

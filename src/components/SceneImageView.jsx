@@ -461,9 +461,44 @@ const ScenePreview = ({ scene, cut, sceneCuts, selectedCutKey, onSelectCut,
 
 
 /* ══ 오른쪽: 씬 설정 패널 (등장인물 + 배경 + 텍스트 + 생성버튼) ═════════ */
+
+// 카메라 구도 옵션 — 모듈 단위 캐시 (앱 수명 동안 1회만 fetch)
+let _cameraOptionsCache = null;
+const useCameraOptions = () => {
+  const [opts, setOpts] = React.useState(_cameraOptionsCache);
+  React.useEffect(() => {
+    if (_cameraOptionsCache) return;
+    let cancelled = false;
+    api.get('/api/camera/options').then(d => {
+      if (cancelled) return;
+      _cameraOptionsCache = d;
+      setOpts(d);
+    }).catch(() => { /* 옵션 미가용 시 드롭다운 자동만 표시 */ });
+    return () => { cancelled = true; };
+  }, []);
+  return opts;
+};
+
 const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveUrl, isGenerating, onReloaded, onClearCut, setError, selectedLoc, setSelectedLoc }) => {
   const [generating, setGenerating] = React.useState(false);
   const [selectedChars, setSelectedChars] = React.useState([]);
+  const cameraOptions = useCameraOptions();
+
+  // 카메라 구도 — comp_* 우선, 없으면 cut의 직접 필드, 둘 다 비면 빈 문자열(="자동")
+  const cutShotSize  = (cut?.shot_size       ?? cut?.comp_shot_size       ?? '').trim();
+  const cutAngle     = (cut?.angle           ?? cut?.comp_angle           ?? '').trim();
+  const cutMovement  = (cut?.camera_movement ?? cut?.comp_camera_movement ?? '').trim();
+  const cutSpeed     = (cut?.camera_speed                                  ?? '').trim();
+
+  const patchCutCamera = async (field, value) => {
+    if (!cut?.cut_key) return;
+    try {
+      await api.patch(`/api/projects/${pid}/shorts/${sid}/cuts/${cut.cut_key}`, { [field]: value });
+      if (onReloaded) await onReloaded();
+    } catch (e) {
+      if (setError) setError(e.message);
+    }
+  };
 
   React.useEffect(() => {
     if (!scene) return;
@@ -578,8 +613,47 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
           )}
         </Section>
 
-        {/* ② 등장인물 선택 */}
-        <Section label="② 등장인물">
+        {/* ② 카메라 구도 (현재 컷) */}
+        {cut && (
+          <Section label="② 카메라 구도 (현재 컷)">
+            <CameraDropdownRow
+              label="샷 사이즈"
+              field="shot_size"
+              value={cutShotSize}
+              options={cameraOptions?.shot_size}
+              onChange={v => patchCutCamera('shot_size', v)}
+            />
+            <CameraDropdownRow
+              label="앵글"
+              field="angle"
+              value={cutAngle}
+              options={cameraOptions?.angle}
+              onChange={v => patchCutCamera('angle', v)}
+            />
+            <CameraDropdownRow
+              label="카메라 움직임"
+              field="camera_movement"
+              value={cutMovement}
+              options={cameraOptions?.camera_movement}
+              onChange={v => patchCutCamera('camera_movement', v)}
+              hint={
+                cutMovement && cameraOptions?.structured_camera_keys?.includes(cutMovement)
+                  ? '정밀 제어 가능 (Kling v1.6 라우팅)'
+                  : null
+              }
+            />
+            <CameraDropdownRow
+              label="속도"
+              field="camera_speed"
+              value={cutSpeed}
+              options={cameraOptions?.speed}
+              onChange={v => patchCutCamera('camera_speed', v)}
+            />
+          </Section>
+        )}
+
+        {/* ③ 등장인물 선택 */}
+        <Section label="③ 등장인물">
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {allChars.length === 0 && (
               <div style={{ fontSize:11, color:'var(--text-4)' }}>등장인물 없음</div>
@@ -617,8 +691,8 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
           </div>
         </Section>
 
-        {/* ③ 배경 선택 */}
-        <Section label="③ 배경">
+        {/* ④ 배경 선택 */}
+        <Section label="④ 배경">
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {/* 배경 없음 옵션 */}
             <div onClick={() => setSelectedLoc(null)}
@@ -700,6 +774,40 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
   );
 };
 
+
+/* 카메라 구도 드롭다운 한 줄.
+ * options 미가용 시(API 실패 또는 fetch 전) 자동 옵션만 표시되는 read-only 텍스트로 폴백. */
+const CameraDropdownRow = ({ label, field, value, options, onChange, hint }) => {
+  const opts = options || [{ value: '', label_ko: '자동 (AI 추천)', label_en: 'auto' }];
+  const isAuto = !value;
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+      <span style={{ fontSize:11, color:'var(--text-3)', minWidth:88, flexShrink:0 }}>{label}</span>
+      <select
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        disabled={!options}
+        style={{
+          flex:1, minWidth:0, padding:'6px 8px', fontSize:12, borderRadius:6,
+          border:`1px solid ${isAuto ? 'var(--border)' : 'var(--violet)'}`,
+          background: isAuto ? 'var(--surface)' : 'color-mix(in oklch, var(--violet) 6%, var(--surface))',
+          color:'var(--text)', fontFamily:'inherit', cursor: options ? 'pointer' : 'default',
+        }}
+      >
+        {opts.map(o => (
+          <option key={o.value || '__auto__'} value={o.value}>
+            {o.label_ko}{o.label_en && o.value ? ` · ${o.label_en}` : ''}
+          </option>
+        ))}
+      </select>
+      {hint && (
+        <span style={{ fontSize:9, color:'var(--mint)', fontFamily:'var(--font-mono)', flexShrink:0 }}>
+          ✓
+        </span>
+      )}
+    </div>
+  );
+};
 
 /* ── 섹션 래퍼 ── */
 const Section = ({ label, children }) => (
