@@ -462,42 +462,41 @@ const ScenePreview = ({ scene, cut, sceneCuts, selectedCutKey, onSelectCut,
 
 /* ══ 오른쪽: 씬 설정 패널 (등장인물 + 배경 + 텍스트 + 생성버튼) ═════════ */
 
-// 카메라 구도 옵션 — 모듈 단위 캐시 (앱 수명 동안 1회만 fetch)
-let _cameraOptionsCache = null;
-const useCameraOptions = () => {
-  const [opts, setOpts] = React.useState(_cameraOptionsCache);
-  React.useEffect(() => {
-    if (_cameraOptionsCache) return;
-    let cancelled = false;
-    api.get('/api/camera/options').then(d => {
-      if (cancelled) return;
-      _cameraOptionsCache = d;
-      setOpts(d);
-    }).catch(() => { /* 옵션 미가용 시 드롭다운 자동만 표시 */ });
-    return () => { cancelled = true; };
-  }, []);
-  return opts;
-};
-
 const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveUrl, isGenerating, onReloaded, onClearCut, setError, selectedLoc, setSelectedLoc }) => {
   const [generating, setGenerating] = React.useState(false);
   const [selectedChars, setSelectedChars] = React.useState([]);
-  const cameraOptions = useCameraOptions();
 
-  // 카메라 구도 — comp_* 우선, 없으면 cut의 직접 필드, 둘 다 비면 빈 문자열(="자동")
-  const cutShotSize  = (cut?.shot_size       ?? cut?.comp_shot_size       ?? '').trim();
-  const cutAngle     = (cut?.angle           ?? cut?.comp_angle           ?? '').trim();
-  const cutMovement  = (cut?.camera_movement ?? cut?.comp_camera_movement ?? '').trim();
-  const cutSpeed     = (cut?.camera_speed                                  ?? '').trim();
+  // 카메라 구도 — comp_* 우선, 없으면 cut의 직접 필드, 없으면 빈 문자열(="자동")
+  const cutShotSize    = (cut?.shot_size       ?? cut?.comp_shot_size       ?? '').trim();
+  const cutAngle       = (cut?.angle           ?? cut?.comp_angle           ?? '').trim();
+  const cutMovement    = (cut?.camera_movement ?? cut?.comp_camera_movement ?? '').trim();
+  const cutSpeed       = (cut?.camera_speed    ?? '').trim();
+  const cutLens        = (cut?.lens_style      ?? '').trim();
+  const cutLighting    = (cut?.lighting        ?? '').trim();
+  const cutColorGrade  = (cut?.color_grade     ?? '').trim();
+  const cutMood        = (cut?.mood            ?? cut?.mood_ko              ?? '').trim();
+  const cutDuration    = cut?.duration_sec ?? 5;
 
-  const patchCutCamera = async (field, value) => {
+  // 재생성 대기 상태 — 편집 저장 시 video_status를 pending으로 간주
+  const [videoResetPending, setVideoResetPending] = React.useState(false);
+
+  const patchCut = async (fields) => {
     if (!cut?.cut_key) return;
     try {
-      await api.patch(`/api/projects/${pid}/shorts/${sid}/cuts/${cut.cut_key}`, { [field]: value });
+      await api.patch(`/api/projects/${pid}/shorts/${sid}/cuts/${cut.cut_key}`, fields);
+      setVideoResetPending(true);
       if (onReloaded) await onReloaded();
     } catch (e) {
       if (setError) setError(e.message);
     }
+  };
+
+  // 샷 사이즈 변경 시 렌즈 추천값 자동 표시 (사용자가 직접 렌즈를 바꾸지 않은 경우만)
+  const handleShotSizeChange = (v) => {
+    const suggested = SHOT_LENS_MAP[v] || '';
+    const fields = { shot_size: v };
+    if (!cutLens && suggested) fields.lens_style = suggested;
+    patchCut(fields);
   };
 
   React.useEffect(() => {
@@ -616,39 +615,89 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
         {/* ② 카메라 구도 (현재 컷) */}
         {cut && (
           <Section label="② 카메라 구도 (현재 컷)">
-            <CameraDropdownRow
-              label="샷 사이즈"
-              field="shot_size"
-              value={cutShotSize}
-              options={cameraOptions?.shot_size}
-              onChange={v => patchCutCamera('shot_size', v)}
-            />
-            <CameraDropdownRow
-              label="앵글"
-              field="angle"
-              value={cutAngle}
-              options={cameraOptions?.angle}
-              onChange={v => patchCutCamera('angle', v)}
-            />
-            <CameraDropdownRow
-              label="카메라 움직임"
-              field="camera_movement"
-              value={cutMovement}
-              options={cameraOptions?.camera_movement}
-              onChange={v => patchCutCamera('camera_movement', v)}
-              hint={
-                cutMovement && cameraOptions?.structured_camera_keys?.includes(cutMovement)
-                  ? '정밀 제어 가능 (Kling v1.6 라우팅)'
-                  : null
-              }
-            />
-            <CameraDropdownRow
-              label="속도"
-              field="camera_speed"
-              value={cutSpeed}
-              options={cameraOptions?.speed}
-              onChange={v => patchCutCamera('camera_speed', v)}
-            />
+            {/* 샷 사이즈 */}
+            <CameraDropdownRow label="샷 사이즈" value={cutShotSize} opts={SHOT_SIZE_OPTS}
+              onChange={handleShotSizeChange} />
+            {/* 앵글 */}
+            <CameraDropdownRow label="앵글" value={cutAngle} opts={ANGLE_OPTS}
+              onChange={v => patchCut({ angle: v })} />
+            {/* 카메라 무브 (그룹 + 툴팁) */}
+            <MovementDropdown value={cutMovement} onChange={v => patchCut({ camera_movement: v })} />
+            {/* 속도 */}
+            <CameraDropdownRow label="속도" value={cutSpeed} opts={SPEED_OPTS}
+              onChange={v => patchCut({ camera_speed: v })} />
+            {/* 렌즈 — 샷 사이즈 선택 시 추천값 표시 */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <span style={{ fontSize:11, color:'var(--text-3)', minWidth:88, flexShrink:0 }}>렌즈</span>
+              <select
+                value={cutLens || ''}
+                onChange={e => patchCut({ lens_style: e.target.value })}
+                style={{
+                  flex:1, minWidth:0, padding:'6px 8px', fontSize:12, borderRadius:6,
+                  border:`1px solid ${cutLens ? 'var(--violet)' : 'var(--border)'}`,
+                  background: cutLens ? 'color-mix(in oklch, var(--violet) 6%, var(--surface))' : 'var(--surface)',
+                  color:'var(--text)', fontFamily:'inherit', cursor:'pointer',
+                }}
+              >
+                {LENS_OPTS.map(o => <option key={o.value || '__auto__'} value={o.value}>{o.ko}</option>)}
+              </select>
+              {cutShotSize && SHOT_LENS_MAP[cutShotSize] && !cutLens && (
+                <span style={{ fontSize:10, color:'var(--text-4)', fontFamily:'var(--font-mono)', flexShrink:0, whiteSpace:'nowrap' }}>
+                  추천 {SHOT_LENS_MAP[cutShotSize]}
+                </span>
+              )}
+            </div>
+
+            <div style={{ borderTop:'1px solid var(--border)', margin:'10px 0' }} />
+
+            {/* 라이팅 */}
+            <div style={{ marginBottom:6 }}>
+              <span style={{ fontSize:11, color:'var(--text-3)', display:'block', marginBottom:4 }}>라이팅</span>
+              <input
+                value={cutLighting}
+                onChange={e => patchCut({ lighting: e.target.value })}
+                placeholder="예) 카메라 왼쪽 창문에서 부드러운 자연광, 오른쪽 약한 림 라이트"
+                style={{
+                  width:'100%', padding:'6px 8px', fontSize:12, borderRadius:6,
+                  border:`1px solid ${cutLighting ? 'var(--violet)' : 'var(--border)'}`,
+                  background: cutLighting ? 'color-mix(in oklch, var(--violet) 6%, var(--surface))' : 'var(--surface)',
+                  color:'var(--text)', outline:'none', boxSizing:'border-box',
+                }}
+              />
+            </div>
+            {/* 색보정 */}
+            <ComboField label="색보정" value={cutColorGrade} opts={COLOR_GRADE_OPTS}
+              onChange={v => patchCut({ color_grade: v })} placeholder="직접입력..." />
+            {/* 무드 */}
+            <ComboField label="무드" value={cutMood} opts={MOOD_OPTS}
+              onChange={v => patchCut({ mood: v })} placeholder="직접입력..." />
+
+            <div style={{ borderTop:'1px solid var(--border)', margin:'10px 0' }} />
+
+            {/* 지속 시간 */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <span style={{ fontSize:11, color:'var(--text-3)', minWidth:88, flexShrink:0 }}>지속 시간</span>
+              <input type="number" min={1} max={10} step={1}
+                value={cutDuration}
+                onChange={e => patchCut({ duration_sec: Number(e.target.value) })}
+                style={{
+                  width:72, padding:'6px 8px', fontSize:12, borderRadius:6,
+                  border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', outline:'none',
+                }}
+              />
+              <span style={{ fontSize:11, color:'var(--text-4)' }}>초 (1–10)</span>
+            </div>
+
+            {/* 영상 재생성 버튼 */}
+            {videoResetPending && (
+              <div style={{ marginTop:8, padding:'8px 10px', background:'color-mix(in oklch, var(--orange) 10%, var(--surface))', border:'1px solid color-mix(in oklch, var(--orange) 35%, transparent)', borderRadius:6, display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:11, color:'var(--orange)', flex:1 }}>컷 설정이 변경됐습니다. 영상을 재생성하세요.</span>
+                <button className="btn sm" style={{ fontSize:10, borderColor:'var(--orange)', color:'var(--orange)', flexShrink:0 }}
+                  onClick={() => { setVideoResetPending(false); /* RenderView에서 재생성 */ }}>
+                  <Icon name="refresh" size={10} />재생성
+                </button>
+              </div>
+            )}
           </Section>
         )}
 
@@ -775,10 +824,115 @@ const ScenePanel = ({ scene, cut, sceneCuts, charMap, locMap, pid, sid, resolveU
 };
 
 
-/* 카메라 구도 드롭다운 한 줄.
- * options 미가용 시(API 실패 또는 fetch 전) 자동 옵션만 표시되는 read-only 텍스트로 폴백. */
-const CameraDropdownRow = ({ label, field, value, options, onChange, hint }) => {
-  const opts = options || [{ value: '', label_ko: '자동 (AI 추천)', label_en: 'auto' }];
+/* ── 정적 카메라 구도 옵션 (API 독립) ── */
+const SHOT_SIZE_OPTS = [
+  { value:'',    ko:'자동 (AI 추천)' },
+  { value:'ECU', ko:'ECU · 익스트림 클로즈업' },
+  { value:'CU',  ko:'CU · 클로즈업' },
+  { value:'MCU', ko:'MCU · 미디엄 클로즈업' },
+  { value:'MS',  ko:'MS · 미디엄' },
+  { value:'MLS', ko:'MLS · 미디엄 롱' },
+  { value:'LS',  ko:'LS · 롱샷' },
+  { value:'WS',  ko:'WS · 와이드' },
+  { value:'EWS', ko:'EWS · 익스트림 와이드' },
+];
+const ANGLE_OPTS = [
+  { value:'',              ko:'자동 (AI 추천)' },
+  { value:'eye',           ko:'아이레벨' },
+  { value:'high',          ko:'하이앵글' },
+  { value:'low',           ko:'로우앵글' },
+  { value:'dutch',         ko:'더치' },
+  { value:'ots',           ko:'오버더숄더' },
+];
+const MOVEMENT_GROUPS = [
+  { group:'고정·핸드헬드', opts:[
+    { value:'static',     ko:'고정',      tip:'카메라 완전 고정' },
+    { value:'handheld',   ko:'핸드헬드',  tip:'손으로 들고 촬영 — 약간의 흔들림' },
+    { value:'steadicam',  ko:'스테디캠',  tip:'흔들림 없는 부드러운 이동' },
+    { value:'gimbal',     ko:'짐벌',      tip:'전자식 손떨림 보정 이동' },
+  ]},
+  { group:'달리 (물리 전진/후진)', opts:[
+    { value:'dolly_in',   ko:'달리인',    tip:'카메라가 피사체 쪽으로 물리적으로 전진' },
+    { value:'dolly_out',  ko:'달리아웃',  tip:'카메라가 피사체에서 물리적으로 후퇴' },
+  ]},
+  { group:'트래킹·슬라이더', opts:[
+    { value:'tracking',   ko:'트래킹',    tip:'피사체를 따라 평행 이동' },
+    { value:'slider',     ko:'슬라이더',  tip:'레일 위 수평 이동' },
+  ]},
+  { group:'팬·틸트', opts:[
+    { value:'pan',        ko:'팬',        tip:'카메라 수평 회전' },
+    { value:'pan_left',   ko:'팬왼쪽',   tip:'왼쪽으로 패닝' },
+    { value:'pan_right',  ko:'팬오른쪽',  tip:'오른쪽으로 패닝' },
+    { value:'tilt_up',    ko:'틸트업',    tip:'카메라 위로 기울기' },
+    { value:'tilt_down',  ko:'틸트다운',  tip:'카메라 아래로 기울기' },
+  ]},
+  { group:'크레인·드론', opts:[
+    { value:'crane',       ko:'크레인',   tip:'크레인으로 상승' },
+    { value:'crane_down',  ko:'크레인다운', tip:'크레인으로 하강' },
+    { value:'drone',       ko:'드론',     tip:'드론 공중 촬영' },
+    { value:'drone_rise',  ko:'드론상승', tip:'드론 수직 상승' },
+  ]},
+  { group:'오빗·특수', opts:[
+    { value:'orbit',       ko:'오빗',      tip:'피사체 주변 90도 호 이동' },
+    { value:'orbit_left',  ko:'오빗왼쪽', tip:'피사체 왼쪽으로 선회' },
+    { value:'orbit_right', ko:'오빗오른쪽', tip:'피사체 오른쪽으로 선회' },
+    { value:'rack_focus',  ko:'랙포커스', tip:'초점 이동으로 시선 전환' },
+    { value:'whip_pan',    ko:'위프팬',   tip:'매우 빠른 수평 패닝 — 전환 효과' },
+    { value:'push_zoom',   ko:'푸시줌',   tip:'줌(렌즈)만 변경 — 달리와 다름' },
+    { value:'parallax',    ko:'패럴랙스', tip:'카메라·피사체 반대 방향 이동 — 깊이감' },
+    { value:'overcrank',   ko:'오버크랭크', tip:'고속 촬영 → 슬로모 재생' },
+    { value:'pov',         ko:'시점',     tip:'인물 시점 카메라' },
+  ]},
+];
+const MOVEMENT_OPTS_FLAT = [
+  { value:'', ko:'자동 (AI 추천)', tip:'' },
+  ...MOVEMENT_GROUPS.flatMap(g => g.opts),
+];
+const SPEED_OPTS = [
+  { value:'',        ko:'자동 (AI 추천)' },
+  { value:'very_slow', ko:'매우느림' },
+  { value:'slow',    ko:'느림' },
+  { value:'stable',  ko:'안정' },
+  { value:'gradual', ko:'점진' },
+  { value:'fast',    ko:'빠름' },
+  { value:'impact',  ko:'충격' },
+];
+const LENS_OPTS = [
+  { value:'',      ko:'자동 (AI 추천)' },
+  { value:'21mm',  ko:'21mm' },
+  { value:'24mm',  ko:'24mm' },
+  { value:'28mm',  ko:'28mm' },
+  { value:'35mm',  ko:'35mm' },
+  { value:'50mm',  ko:'50mm' },
+  { value:'85mm',  ko:'85mm' },
+  { value:'135mm', ko:'135mm' },
+];
+const COLOR_GRADE_OPTS = [
+  { value:'',                 ko:'자동 (AI 추천)' },
+  { value:'teal-orange',      ko:'Teal-Orange' },
+  { value:'desaturated-warm', ko:'탈색-웜' },
+  { value:'desaturated-cool', ko:'탈색-쿨' },
+  { value:'high-contrast',    ko:'하이 콘트라스트' },
+  { value:'flat-matte',       ko:'플랫 매트' },
+];
+const MOOD_OPTS = [
+  { value:'',    ko:'자동 (AI 추천)' },
+  { value:'긴장', ko:'긴장' },
+  { value:'슬픔', ko:'슬픔' },
+  { value:'기쁨', ko:'기쁨' },
+  { value:'분노', ko:'분노' },
+  { value:'공포', ko:'공포' },
+  { value:'평온', ko:'평온' },
+];
+
+// 샷 사이즈 → 렌즈 추천 매핑
+const SHOT_LENS_MAP = {
+  ECU:'85mm', CU:'85mm', MCU:'50mm', MS:'50mm',
+  MLS:'35mm', LS:'28mm', WS:'24mm', EWS:'21mm',
+};
+
+/* 카메라 구도 드롭다운 한 줄 */
+const CameraDropdownRow = ({ label, value, opts, onChange, hint, tooltip }) => {
   const isAuto = !value;
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
@@ -786,25 +940,86 @@ const CameraDropdownRow = ({ label, field, value, options, onChange, hint }) => 
       <select
         value={value || ''}
         onChange={e => onChange(e.target.value)}
-        disabled={!options}
         style={{
           flex:1, minWidth:0, padding:'6px 8px', fontSize:12, borderRadius:6,
           border:`1px solid ${isAuto ? 'var(--border)' : 'var(--violet)'}`,
           background: isAuto ? 'var(--surface)' : 'color-mix(in oklch, var(--violet) 6%, var(--surface))',
-          color:'var(--text)', fontFamily:'inherit', cursor: options ? 'pointer' : 'default',
+          color:'var(--text)', fontFamily:'inherit', cursor:'pointer',
         }}
       >
-        {opts.map(o => (
-          <option key={o.value || '__auto__'} value={o.value}>
-            {o.label_ko}{o.label_en && o.value ? ` · ${o.label_en}` : ''}
-          </option>
-        ))}
+        {opts.map(o => <option key={o.value || '__auto__'} value={o.value}>{o.ko}</option>)}
       </select>
-      {hint && (
-        <span style={{ fontSize:9, color:'var(--mint)', fontFamily:'var(--font-mono)', flexShrink:0 }}>
-          ✓
-        </span>
+      {hint && <span style={{ fontSize:9, color:'var(--mint)', fontFamily:'var(--font-mono)', flexShrink:0 }}>✓</span>}
+      {tooltip && <span title={tooltip} style={{ fontSize:11, color:'var(--text-4)', cursor:'help', flexShrink:0 }}>?</span>}
+    </div>
+  );
+};
+
+/* 카메라 무브 드롭다운 (그룹 + 툴팁) */
+const MovementDropdown = ({ value, onChange }) => {
+  const isAuto = !value;
+  const tip = MOVEMENT_OPTS_FLAT.find(o => o.value === value)?.tip || '';
+  return (
+    <div style={{ marginBottom:6 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <span style={{ fontSize:11, color:'var(--text-3)', minWidth:88, flexShrink:0 }}>카메라 무브</span>
+        <select
+          value={value || ''}
+          onChange={e => onChange(e.target.value)}
+          style={{
+            flex:1, minWidth:0, padding:'6px 8px', fontSize:12, borderRadius:6,
+            border:`1px solid ${isAuto ? 'var(--border)' : 'var(--violet)'}`,
+            background: isAuto ? 'var(--surface)' : 'color-mix(in oklch, var(--violet) 6%, var(--surface))',
+            color:'var(--text)', fontFamily:'inherit', cursor:'pointer',
+          }}
+        >
+          <option value=''>자동 (AI 추천)</option>
+          {MOVEMENT_GROUPS.map(g => (
+            <optgroup key={g.group} label={g.group}>
+              {g.opts.map(o => <option key={o.value} value={o.value}>{o.ko}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+      {tip && (
+        <div style={{ marginLeft:96, fontSize:10, color:'var(--text-4)', marginTop:2, fontStyle:'italic' }}>{tip}</div>
       )}
+    </div>
+  );
+};
+
+/* 자유입력 + 드롭다운 콤보 */
+const ComboField = ({ label, value, opts, onChange, placeholder }) => {
+  const isPreset = opts.some(o => o.value === value && o.value !== '');
+  const isAuto = !value;
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+      <span style={{ fontSize:11, color:'var(--text-3)', minWidth:88, flexShrink:0 }}>{label}</span>
+      <div style={{ flex:1, display:'flex', gap:4 }}>
+        <select
+          value={isPreset || isAuto ? (value || '') : '__custom__'}
+          onChange={e => { if (e.target.value !== '__custom__') onChange(e.target.value); }}
+          style={{
+            width:130, flexShrink:0, padding:'6px 8px', fontSize:12, borderRadius:6,
+            border:`1px solid ${isAuto ? 'var(--border)' : 'var(--violet)'}`,
+            background: isAuto ? 'var(--surface)' : 'color-mix(in oklch, var(--violet) 6%, var(--surface))',
+            color:'var(--text)', fontFamily:'inherit', cursor:'pointer',
+          }}
+        >
+          {opts.map(o => <option key={o.value || '__auto__'} value={o.value}>{o.ko}</option>)}
+          {!isPreset && !isAuto && <option value='__custom__'>직접입력</option>}
+        </select>
+        <input
+          value={value || ''}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder || '직접입력...'}
+          style={{
+            flex:1, minWidth:0, padding:'6px 8px', fontSize:12, borderRadius:6,
+            border:`1px solid ${!isAuto && !isPreset ? 'var(--violet)' : 'var(--border)'}`,
+            background:'var(--surface)', color:'var(--text)', outline:'none',
+          }}
+        />
+      </div>
     </div>
   );
 };

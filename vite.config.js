@@ -1,5 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { pathToFileURL } from 'url';
+import path from 'path';
 
 // 로컬에서 /api/notify 를 Vercel 함수처럼 실행하는 플러그인
 function localNotifyPlugin(env) {
@@ -25,7 +27,8 @@ function localNotifyPlugin(env) {
               GMAIL_REFRESH_TOKEN: env.GMAIL_REFRESH_TOKEN,
               GMAIL_TO: env.GMAIL_TO,
             });
-            const { default: handler } = await import('./api/notify.js?t=' + Date.now());
+            const notifyUrl = pathToFileURL(path.resolve('./api/notify.js')).href + '?t=' + Date.now();
+            const { default: handler } = await import(notifyUrl);
             await handler(
               { method: 'POST', body: data },
               {

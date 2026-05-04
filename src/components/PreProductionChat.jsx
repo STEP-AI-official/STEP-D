@@ -138,31 +138,33 @@ const DocCard = ({ doc, shortTitle, setShortTitle, onConfirm, creating }) => {
         </div>
       )}
     </div>
-    <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(0,212,160,0.12)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
-        <input
-          type="checkbox"
-          checked={skipFactCheck}
-          onChange={e => setSkipFactCheck(e.target.checked)}
-          style={{ accentColor: '#00d4a0', width: 14, height: 14 }}
-        />
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>팩트체크 건너뛰기 (더 빠름)</span>
-      </label>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={shortTitle}
-          onChange={e => setShortTitle(e.target.value)}
-          placeholder={doc.title || '다큐 제목...'}
-          style={{
-            flex: 1, padding: '8px 12px', fontSize: 13,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8, outline: 'none',
-            color: 'rgba(255,255,255,0.88)',
-          }}
-          onFocus={e => e.target.style.borderColor = 'rgba(0,212,160,0.5)'}
-          onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-        />
+    <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(0,212,160,0.12)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <input
+        value={shortTitle}
+        onChange={e => setShortTitle(e.target.value)}
+        placeholder={doc.title || '영상 제목...'}
+        style={{
+          width: '100%', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8, outline: 'none',
+          color: 'rgba(255,255,255,0.88)',
+        }}
+        onFocus={e => e.target.style.borderColor = 'rgba(0,212,160,0.5)'}
+        onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={skipFactCheck}
+            onChange={e => setSkipFactCheck(e.target.checked)}
+            style={{ accentColor: '#00d4a0', width: 14, height: 14 }}
+          />
+          <span style={{ fontSize: 12, color: skipFactCheck ? '#00d4a0' : 'rgba(255,255,255,0.45)' }}>
+            팩트체크 건너뛰기 <span style={{ fontSize: 11, opacity: 0.6 }}>(더 빠름)</span>
+          </span>
+        </label>
         <button className="btn primary" style={{ borderRadius: 8, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => onConfirm(skipFactCheck)} disabled={creating}>
           {creating
             ? <><span className="spinner" style={{ width: 11, height: 11, borderWidth: 1.5 }} />생성 중</>
@@ -174,27 +176,376 @@ const DocCard = ({ doc, shortTitle, setShortTitle, onConfirm, creating }) => {
   );
 };
 
+/* ── 템플릿 미리보기 패널 ── */
+const TemplatePreview = ({ template, onCancel, onApply, applying, streamText }) => (
+  <div style={{
+    overflow: 'hidden',
+    maxHeight: applying ? 80 : 500,
+    transition: 'max-height 200ms ease-in-out',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  }}>
+    <div style={{ padding: '10px 14px', background: 'rgba(124,111,247,0.06)', borderBottom: '1px solid rgba(124,111,247,0.12)' }}>
+      {/* 헤더 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.88)' }}>{template.name}</div>
+          {template.description && (
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2, lineHeight: 1.5 }}>{template.description}</div>
+          )}
+        </div>
+      </div>
+
+      {/* EP 카드 미리보기 */}
+      {!applying && (template.episodes || []).map((ep, i) => (
+        <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 10px', marginBottom: 5 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 4 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(124,111,247,0.8)', minWidth: 28 }}>EP{ep.ep}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.78)' }}>{ep.title || ''}</span>
+          </div>
+          {ep.arc && (
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5, marginBottom: ep.scenes?.length ? 5 : 0 }}>
+              {ep.arc}
+            </div>
+          )}
+          {ep.scenes?.length > 0 && (
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-mono)' }}>
+              씬 힌트: {ep.scenes.slice(0, 3).join(' / ')}{ep.scenes.length > 3 ? ' ...' : ''}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* 스트리밍 중 텍스트 */}
+      {applying && (
+        <div style={{ fontSize: 11, color: 'rgba(0,212,160,0.6)', fontFamily: 'var(--font-mono)', maxHeight: 44, overflow: 'hidden' }}>
+          {streamText || 'AI가 기획에 맞게 구성 중...'}
+        </div>
+      )}
+
+      {/* 하단 버튼 */}
+      {!applying && (
+        <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
+          <button
+            onClick={onCancel}
+            style={{ flex: 1, padding: '6px', fontSize: 12, background: 'none', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 7, cursor: 'pointer', color: 'rgba(255,255,255,0.45)' }}
+          >
+            취소
+          </button>
+          <button
+            onClick={onApply}
+            style={{ flex: 2, padding: '6px', fontSize: 12, fontWeight: 700, background: 'rgba(0,212,160,0.18)', border: '1px solid rgba(0,212,160,0.4)', borderRadius: 7, cursor: 'pointer', color: '#00d4a0' }}
+          >
+            내 기획에 맞게 적용 →
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+/* ── 에피소드 패널 ── */
+const EpisodesPanel = ({ pid, initialEpisodes, onEpisodesChange }) => {
+  const [episodes, setEpisodes]   = React.useState(initialEpisodes || []);
+
+  const updateEpisodes = (next) => {
+    setEpisodes(next);
+    onEpisodesChange?.(next);
+  };
+  const [templates,       setTemplates]       = React.useState([]);
+  const [previewTemplate, setPreviewTemplate] = React.useState(null); // 미리보기 중인 템플릿
+  const [appliedTemplateId, setAppliedTemplateId] = React.useState(null); // 마지막 적용된 template_id
+  const [applying,        setApplying]        = React.useState(false);
+  const [regenIdx,        setRegenIdx]        = React.useState(null);  // EP별 재생성 중인 인덱스
+  const [saving,          setSaving]          = React.useState(false);
+  const [saved,           setSaved]           = React.useState(false);
+  const [editIdx,         setEditIdx]         = React.useState(null);
+  const [streamText,      setStreamText]      = React.useState('');
+
+  React.useEffect(() => {
+    fetch('/api/admin/templates?content_type=docu')
+      .then(r => r.ok ? r.json() : { templates: [] })
+      .then(d => setTemplates(d.templates || []))
+      .catch(() => {});
+  }, []);
+
+  // SSE 스트림 공통 파서
+  const readSSE = async (res, onEvent) => {
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split('\n\n'); buf = parts.pop();
+      for (const part of parts) {
+        const line = part.replace(/^data:\s*/, '').trim();
+        if (!line) continue;
+        try { onEvent(JSON.parse(line)); } catch {}
+      }
+    }
+  };
+
+  // [2단계] "내 기획에 맞게 적용" 클릭 → 전체 생성
+  const applyTemplate = async () => {
+    if (!previewTemplate) return;
+    const templateId = previewTemplate.id;
+    setApplying(true);
+    setStreamText('');
+    try {
+      const res = await fetch(`/api/projects/${pid}/preproduction/apply-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      let finalEps = null;
+      await readSSE(res, (obj) => {
+        if (obj.type === 'token')    setStreamText(t => t + (obj.text || ''));
+        if (obj.type === 'episodes') finalEps = obj.items;
+      });
+      if (finalEps) {
+        updateEpisodes(finalEps);
+        setAppliedTemplateId(templateId);
+        setPreviewTemplate(null);
+        setStreamText('');
+      }
+    } catch {} finally {
+      setApplying(false);
+    }
+  };
+
+  // [3단계] EP 단위 재생성 — ep_updated 이벤트로 해당 카드만 즉시 교체
+  const regenEp = async (epIndex) => {
+    if (!appliedTemplateId) return;
+    const epNumber = episodes[epIndex].ep;
+    setRegenIdx(epIndex);
+    setStreamText('');
+    try {
+      const res = await fetch(`/api/projects/${pid}/preproduction/apply-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: appliedTemplateId, ep: epNumber }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      await readSSE(res, (obj) => {
+        if (obj.type === 'token') setStreamText(t => t + (obj.text || ''));
+        if (obj.type === 'ep_updated') {
+          // 해당 EP 카드만 즉시 교체
+          const updated = obj.item ?? (obj.episodes || []).find(f => f.ep === epNumber);
+          if (updated) {
+            setEpisodes(prev => {
+              const next = prev.map((e, i) => i === epIndex ? updated : e);
+              onEpisodesChange?.(next);
+              return next;
+            });
+          }
+          setStreamText('');
+        }
+      });
+    } catch {} finally {
+      setRegenIdx(null);
+      setStreamText('');
+    }
+  };
+
+  const saveEpisodes = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/projects/${pid}/preproduction/episodes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ episodes }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateEp = (i, field, val) => {
+    updateEpisodes(episodes.map((ep, idx) => idx === i ? { ...ep, [field]: val } : ep));
+  };
+
+  const addEp = () => updateEpisodes([...episodes, { ep: episodes.length + 1, title: '', arc: '', scenes: [] }]);
+  const removeEp = (i) => updateEpisodes(episodes.filter((_, idx) => idx !== i));
+
+  return (
+    <div style={{ marginTop: 12, border: '1px solid rgba(0,212,160,0.2)', borderRadius: 12, overflow: 'hidden' }}>
+      {/* 헤더 */}
+      <div style={{ padding: '9px 14px', background: 'rgba(0,212,160,0.06)', borderBottom: '1px solid rgba(0,212,160,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#00d4a0', letterSpacing: '0.06em' }}>에피소드 구조</span>
+        {episodes.length > 0 && (
+          <button
+            onClick={saveEpisodes}
+            disabled={saving}
+            style={{ fontSize: 11, padding: '3px 10px', background: saved ? 'rgba(0,212,160,0.2)' : 'rgba(0,212,160,0.12)', border: '1px solid rgba(0,212,160,0.3)', borderRadius: 6, cursor: 'pointer', color: '#00d4a0' }}
+          >
+            {saving ? '저장 중...' : saved ? '저장됨 ✓' : '저장'}
+          </button>
+        )}
+      </div>
+
+      {/* [1단계] 템플릿 칩 선택 */}
+      {templates.length > 0 && (
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>템플릿 선택</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {templates.map(t => {
+              const isActive = previewTemplate?.id === t.id;
+              return (
+                <button
+                  key={t.id}
+                  disabled={applying || regenIdx != null}
+                  onClick={() => setPreviewTemplate(isActive ? null : t)}
+                  style={{
+                    fontSize: 11, padding: '4px 10px',
+                    background: isActive ? 'rgba(124,111,247,0.18)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${isActive ? 'rgba(124,111,247,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 20, cursor: 'pointer',
+                    color: isActive ? '#a78bfa' : 'rgba(255,255,255,0.6)',
+                    transition: 'all 0.12s',
+                  }}
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = 'rgba(0,212,160,0.5)'; e.currentTarget.style.color = '#00d4a0'; } }}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; } }}
+                >
+                  {t.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* [2단계] 미리보기 패널 (슬라이드 다운) */}
+      {(previewTemplate || applying) && (
+        <TemplatePreview
+          template={previewTemplate || {}}
+          applying={applying}
+          streamText={streamText}
+          onCancel={() => setPreviewTemplate(null)}
+          onApply={applyTemplate}
+        />
+      )}
+
+      {/* 에피소드 목록 */}
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {episodes.length === 0 && !applying && (
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '12px 0' }}>
+            템플릿을 선택하거나 직접 추가하세요
+          </div>
+        )}
+        {episodes.map((ep, i) => (
+          <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '10px 12px' }}>
+            {editIdx === i ? (
+              // 편집 모드
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: 'rgba(0,212,160,0.6)', fontWeight: 700, minWidth: 28 }}>EP{ep.ep}</span>
+                  <input
+                    value={ep.title}
+                    onChange={e => updateEp(i, 'title', e.target.value)}
+                    placeholder="에피소드 제목"
+                    style={{ flex: 1, padding: '4px 8px', fontSize: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(0,212,160,0.3)', borderRadius: 6, outline: 'none', color: 'rgba(255,255,255,0.9)' }}
+                  />
+                  <button onClick={() => setEditIdx(null)} style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(0,212,160,0.12)', border: '1px solid rgba(0,212,160,0.3)', borderRadius: 5, cursor: 'pointer', color: '#00d4a0' }}>완료</button>
+                  <button onClick={() => removeEp(i)} style={{ fontSize: 11, padding: '3px 8px', background: 'none', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 5, cursor: 'pointer', color: '#ff7070' }}>삭제</button>
+                </div>
+                <textarea
+                  value={ep.arc}
+                  onChange={e => updateEp(i, 'arc', e.target.value)}
+                  placeholder="아크 — 이 에피소드에서 일어나는 일"
+                  rows={2}
+                  style={{ padding: '6px 8px', fontSize: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, outline: 'none', color: 'rgba(255,255,255,0.8)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.55 }}
+                />
+              </div>
+            ) : (
+              // 읽기 모드
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(0,212,160,0.6)', minWidth: 28, marginTop: 2 }}>EP{ep.ep}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.88)', marginBottom: 3 }}>{ep.title || '(제목 없음)'}</div>
+                  {ep.arc && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>{ep.arc}</div>}
+                  {ep.scenes?.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+                      {ep.scenes.map((s, si) => (
+                        <span key={si} style={{ fontSize: 10, padding: '2px 7px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: 'rgba(255,255,255,0.4)' }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* 재생성 스트리밍 텍스트 */}
+                  {regenIdx === i && streamText && (
+                    <div style={{ fontSize: 11, color: 'rgba(0,212,160,0.55)', marginTop: 5, fontFamily: 'var(--font-mono)', maxHeight: 40, overflow: 'hidden' }}>
+                      {streamText}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  {/* 수정 */}
+                  <button
+                    onClick={() => setEditIdx(i)}
+                    disabled={applying || regenIdx != null}
+                    style={{ fontSize: 11, padding: '3px 8px', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}
+                  >
+                    수정
+                  </button>
+                  {/* ↺ 재생성 — 템플릿이 적용된 경우에만 표시 */}
+                  {appliedTemplateId && (
+                    <button
+                      onClick={() => regenEp(i)}
+                      disabled={applying || regenIdx != null}
+                      style={{ fontSize: 11, padding: '3px 8px', background: 'none', border: '1px solid rgba(124,111,247,0.25)', borderRadius: 5, cursor: 'pointer', color: regenIdx === i ? '#a78bfa' : 'rgba(124,111,247,0.6)' }}
+                      title="이 EP만 재생성"
+                    >
+                      {regenIdx === i
+                        ? <span className="spinner" style={{ width: 9, height: 9, borderWidth: 1.5, borderColor: '#a78bfa', borderTopColor: 'transparent', display: 'inline-block' }} />
+                        : '↺'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <button
+          onClick={addEp}
+          style={{ fontSize: 12, padding: '6px', background: 'none', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.3)', transition: 'all 0.12s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(0,212,160,0.3)'; e.currentTarget.style.color = '#00d4a0'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+        >
+          + 에피소드 추가
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /* ── 추천 칩 ── */
 const Chips = ({ items, onSelect, disabled }) => (
-  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '8px 16px 4px' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 16px 4px' }}>
     {items.map((s, i) => (
       <button
         key={i}
         disabled={disabled}
         onClick={() => onSelect(s)}
         style={{
-          padding: '5px 13px', fontSize: 12,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 20, cursor: 'pointer',
-          color: 'rgba(255,255,255,0.6)',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          padding: '10px 14px', fontSize: 13, textAlign: 'left',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 10, cursor: 'pointer',
+          color: 'rgba(255,255,255,0.7)',
           transition: 'all 0.12s',
-          whiteSpace: 'nowrap',
+          width: '100%',
         }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(0,212,160,0.5)'; e.currentTarget.style.color = '#00d4a0'; e.currentTarget.style.background = 'rgba(0,212,160,0.07)'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(0,212,160,0.4)'; e.currentTarget.style.color = 'rgba(255,255,255,0.9)'; e.currentTarget.style.background = 'rgba(0,212,160,0.06)'; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
       >
-        {s}
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,212,160,0.7)', fontFamily: 'var(--font-mono)', flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+        <span style={{ lineHeight: 1.55 }}>{s}</span>
       </button>
     ))}
   </div>
@@ -290,6 +641,7 @@ const ChatArea = ({ pid, sources, onShortCreated }) => {
   const [typing, setTyping]           = React.useState(false);
   const [streamText, setStreamText]   = React.useState('');
   const [doc, setDoc]                 = React.useState(null);
+  const [episodes, setEpisodes]       = React.useState([]);
   const [shortTitle, setShortTitle]   = React.useState('');
   const [creating, setCreating]       = React.useState(false);
   const [error, setError]             = React.useState(null);
@@ -353,6 +705,7 @@ const ChatArea = ({ pid, sources, onShortCreated }) => {
         title: shortTitle.trim() || doc?.title || '새 다큐',
         preproduction_doc: {
           ...doc,
+          episodes,
           chat_history: messages.map(m => ({ role: m.role, content: m.content })),
         },
         skip_fact_check: skipFactCheck,
@@ -394,10 +747,11 @@ const ChatArea = ({ pid, sources, onShortCreated }) => {
           </div>
         )}
 
-        {/* 기획 완료 카드 */}
+        {/* 기획 완료 카드 + 에피소드 구조 */}
         {doc && (
           <div style={{ marginLeft: 36 }}>
             <DocCard doc={doc} shortTitle={shortTitle} setShortTitle={setShortTitle} onConfirm={createShort} creating={creating} />
+            <EpisodesPanel pid={pid} initialEpisodes={[]} onEpisodesChange={setEpisodes} />
           </div>
         )}
 

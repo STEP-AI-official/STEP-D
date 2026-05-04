@@ -7,9 +7,10 @@ export const Analytics = () => {
   const [usage, setUsage] = React.useState(null);
   const [models, setModels] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [err, setErr] = React.useState(null);
 
   const load = async () => {
-    setLoading(true);
+    setLoading(true); setErr(null);
     try {
       const [e, u, m] = await Promise.all([
         api.get(`/analytics/errors?days=${days}`),
@@ -17,7 +18,7 @@ export const Analytics = () => {
         api.get(`/analytics/models?days=${days}`),
       ]);
       setErrors(e); setUsage(u); setModels(m);
-    } catch (err) { console.error(err); }
+    } catch (e) { setErr(e.message); }
     finally { setLoading(false); }
   };
 
@@ -36,6 +37,7 @@ export const Analytics = () => {
       </div>
       <div className="page-sub">최근 {days}일 기준</div>
 
+      {err && <div style={{ color: 'var(--rose)', padding: '12px 0' }}>{err} <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={load}>재시도</button></div>}
       {loading ? <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 

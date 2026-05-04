@@ -448,7 +448,6 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   const [episodes, setEpisodes] = React.useState([]);
   const [scenes, setScenes] = React.useState([]);
   const [streaming, setStreaming] = React.useState(false);
-  const [streamText, setStreamText] = React.useState('');
   const [selectedEpisodeKey, setSelectedEpisodeKey] = React.useState(null);
   const selectedEpisodeKeyRef = React.useRef(null);
   React.useEffect(() => { selectedEpisodeKeyRef.current = selectedEpisodeKey; }, [selectedEpisodeKey]);
@@ -460,19 +459,13 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   const [showMemoPanel, setShowMemoPanel] = React.useState(false);
   const [memo, setMemo] = React.useState('');
   const [polishing, setPolishing] = React.useState(false);
-  /* 전체 스크롤 모드 vs 선택 모드 */
-  const [scrollMode, setScrollMode] = React.useState(false);
-  /* 스트리밍 타이머 */
-  const [elapsed, setElapsed] = React.useState(0);
-  const [charCount, setCharCount] = React.useState(0);
   const [lastProgress, setLastProgress] = React.useState('');
+  /* 스크롤 ref 맵 — ep/씬 카드 위치로 점프 */
+  const epRefs = React.useRef({});
+  const sceneRefs = React.useRef({});
+  const scrollContainerRef = React.useRef(null);
 
-  // 스트리밍 타이머
-  React.useEffect(() => {
-    if (!streaming) { setElapsed(0); setCharCount(0); setLastProgress(''); return; }
-    const t = setInterval(() => setElapsed(s => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [streaming]);
+  React.useEffect(() => { if (!streaming) setLastProgress(''); }, [streaming]);
 
   const pid = project?.id;
   const sid = short?.id;
@@ -510,17 +503,15 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
     if (!pid || !sid || !(shortStage === 'scenario' && shortStatus === 'generating')) return;
     if (sseActiveRef.current) return;  // 이미 연결 중이면 스킵
     sseActiveRef.current = true;
-    setStreaming(true); setStreamText('');
-    const finish = () => {
+    setStreaming(true);
+    const episodesRef = React.createRef();
+    episodesRef.current = [];
+    const finish = (timedOut = false) => {
       sseActiveRef.current = false;
       setStreaming(false);
       api.get(`/api/projects/${pid}/shorts/${sid}`).then(u => { if (onShortUpdate) onShortUpdate(u); }).catch(() => {});
-      // SSE로 이미 에피소드를 받았으면 loadScenario 생략 — 깜빡임 방지
-      // 에피소드가 아직 없을 때만 fallback 로드
-      setEpisodes(prev => {
-        if (prev.length === 0) { loadScenario(); }
-        return prev;
-      });
+      // 타임아웃 시 DB에서 부분 저장된 씬까지 반영, SSE 수신분 없으면 항상 로드
+      if (timedOut || episodesRef.current.length === 0) loadScenario();
     };
     const es = api.sse(`/api/projects/${pid}/shorts/${sid}/scenario/stream`, obj => {
       if (obj.type === 'done' || obj.done) finish();
@@ -530,7 +521,9 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
         const epScenes = obj.scenes || [];
         setEpisodes(prev => {
           const exists = prev.find(e => e.episode_key === ep.episode_key);
-          return exists ? prev.map(e => e.episode_key === ep.episode_key ? ep : e) : [...prev, ep];
+          const next = exists ? prev.map(e => e.episode_key === ep.episode_key ? ep : e) : [...prev, ep];
+          episodesRef.current = next;
+          return next;
         });
         setScenes(prev => {
           const filtered = prev.filter(s => s.episode_key !== ep.episode_key);
@@ -541,13 +534,10 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
         setStreaming(false);
         if (!selectedEpisodeKeyRef.current) setSelectedEpisodeKey(ep.episode_key);
       } else if (obj.type === 'progress' || obj.type === 'message') {
-        const msg = obj.message || obj.text || '';
-        setLastProgress(msg);
-        const m = msg.match(/\(([0-9,]+)자\)/);
-        if (m) setCharCount(parseInt(m[1].replace(/,/g, ''), 10));
+        setLastProgress(obj.message || obj.text || '');
       } else if (obj.type === 'error') { setStreaming(false); setError(obj.message || '오류'); }
     }, finish);
-    const t = setTimeout(() => { es.close(); finish(); }, 180_000);
+    const t = setTimeout(() => { es.close(); finish(true); }, 300_000);
     return () => { es.close(); clearTimeout(t); sseActiveRef.current = false; };
   }, [pid, sid, shortStage, shortStatus, loadScenario, onShortUpdate]);
 
@@ -560,22 +550,22 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   };
 
   const saveEpisodeToDB = async (epKey, patch) => {
-    try { await api.patch(`/api/projects/${pid}/shorts/${sid}/episodes/${epKey}`, patch); }
+    try { await api.patch(`/api/projects/${pid}/shorts/${sid}/scenario/episodes/${epKey}`, patch); }
     catch (e) { console.warn('에피소드 저장 실패:', e.message); }
   };
 
   const updateScene = (scene, field, value) => {
     const updScene = { ...scene, [field]: value };
-    setScenes(prev => prev.map(s => s === scene ? updScene : s));
-    if (selectedScene === scene) setSelectedScene(updScene);
+    setScenes(prev => prev.map(s => s.scene_key === scene.scene_key ? updScene : s));
+    if (selectedScene?.scene_key === scene.scene_key) setSelectedScene(updScene);
     saveSceneToDB(updScene);
   };
 
   const updateDialogue = (scene, idx, field, value) => {
     const newDlg = (scene.dialogue_ko || []).map((d, i) => i === idx ? { ...d, [field]: value } : d);
     const upd = { ...scene, dialogue_ko: newDlg };
-    setScenes(prev => prev.map(s => s === scene ? upd : s));
-    if (selectedScene === scene) setSelectedScene(upd);
+    setScenes(prev => prev.map(s => s.scene_key === scene.scene_key ? upd : s));
+    if (selectedScene?.scene_key === scene.scene_key) setSelectedScene(upd);
     saveSceneToDB(upd);
   };
 
@@ -589,8 +579,8 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   };
 
   const deleteScene = scene => {
-    setScenes(prev => prev.filter(s => s !== scene));
-    if (selectedScene === scene) setSelectedScene(null);
+    setScenes(prev => prev.filter(s => s.scene_key !== scene.scene_key));
+    if (selectedScene?.scene_key === scene.scene_key) setSelectedScene(null);
   };
 
   const updateEpisode = (epKey, field, value) => {
@@ -624,16 +614,23 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
   React.useEffect(() => { setLocked(isApproved); }, [isApproved]);
   const confirmed = locked;
 
-  const selectedEpisode = episodes.find(ep => ep.episode_key === selectedEpisodeKey) || null;
-  const selectedEpIndex = episodes.findIndex(ep => ep.episode_key === selectedEpisodeKey);
   const totalSec = scenes.reduce((a, s) => a + (s.duration_sec || 0), 0);
 
-  /* 스크롤 모드: 에피소드별 전체 씬 순서 */
-  const scrollScenes = scrollMode
-    ? (selectedEpisode
-        ? scenes.filter(s => (s.episode_key || 'ep_01') === selectedEpisodeKey)
-        : scenes)
-    : (selectedScene ? [selectedScene] : []);
+  /* 사이드바 클릭 → 해당 카드로 스크롤 */
+  const scrollToEp = (epKey) => {
+    setSelectedEpisodeKey(epKey);
+    setSelectedScene(null);
+    requestAnimationFrame(() => {
+      epRefs.current[epKey]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+  const scrollToScene = (scene) => {
+    setSelectedScene(scene);
+    setSelectedEpisodeKey(null);
+    requestAnimationFrame(() => {
+      sceneRefs.current[scene.scene_key]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   /* ── 로딩 ── */
   if (loading && !streaming) return (
@@ -693,14 +690,14 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
             <EpisodeTreeItem
               key={ep.episode_key} episode={ep} epIndex={ei} scenes={scenes}
               selectedScene={selectedScene} selectedEpisodeKey={selectedEpisodeKey}
-              onSelectScene={sc => { setSelectedScene(sc); if (sc) { setSelectedEpisodeKey(null); setScrollMode(false); } }}
-              onSelectEpisode={ek => { setSelectedEpisodeKey(ek); setSelectedScene(null); setScrollMode(true); }}
+              onSelectScene={scrollToScene}
+              onSelectEpisode={scrollToEp}
               onDeleteScene={deleteScene} onAddScene={addScene}
             />
           )) : scenes.map((sc, i) => (
             <SceneTreeItem key={sc.scene_key || i} scene={sc} sceneIndex={i} epIndex={0}
               selected={selectedScene}
-              onSelect={s => { setSelectedScene(s); setSelectedEpisodeKey(null); setScrollMode(false); }}
+              onSelect={scrollToScene}
               onDelete={deleteScene} />
           ))}
         </div>
@@ -720,13 +717,6 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 5, flexShrink: 0, alignItems: 'center' }}>
-            {/* 스크롤/단일 토글 */}
-            <button
-              className="btn sm ghost"
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '4px 10px', background: scrollMode ? 'rgba(0,255,180,0.07)' : 'transparent', borderColor: scrollMode ? 'rgba(0,255,180,0.3)' : undefined }}
-              onClick={() => { setScrollMode(m => !m); if (selectedScene) { setSelectedEpisodeKey(selectedScene.episode_key || 'ep_01'); setSelectedScene(null); } }}>
-              <Icon name="film" size={10} />{scrollMode ? 'SCROLL' : 'SINGLE'}
-            </button>
             {!confirmed && (
               <button className="btn sm ghost" style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }} onClick={() => setShowMemoPanel(p => !p)} disabled={polishing}>
                 <Icon name="refresh" size={10} />REWRITE
@@ -778,67 +768,83 @@ export const ScriptView = ({ project, short, onShortUpdate, setView }) => {
 
         {error && <div style={{ padding: '7px 24px', background: 'rgba(239,68,68,0.08)', fontSize: 11, color: 'var(--rose)', borderBottom: '1px solid rgba(239,68,68,0.2)', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>{error}</div>}
 
-        {/* ── 메인 콘텐츠 영역 ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 56px 80px' }}>
+        {/* ── 메인 콘텐츠 영역 — 전체 렌더링, 클릭 시 해당 위치로 스크롤 ── */}
+        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '40px 56px 80px' }}>
 
-          {/* 에피소드 패널 (스크롤 모드: 에피소드 선택 시 타이틀 표시 후 전체 씬) */}
-          {scrollMode && selectedEpisode && (
-            <>
-              <EpisodePanel
-                episode={selectedEpisode} epIndex={selectedEpIndex}
-                sceneCount={scenes.filter(s => (s.episode_key || 'ep_01') === selectedEpisodeKey).length}
-                confirmed={confirmed}
-                onUpdate={(field, value) => updateEpisode(selectedEpisode.episode_key, field, value)}
-              />
-              <div style={{ margin: '40px 0 32px', borderTop: '1px solid rgba(255,255,255,0.07)' }} />
-            </>
-          )}
-
-          {/* 씬 카드들 */}
-          {scrollScenes.map((sc) => {
-            const globalIdx = scenes.indexOf(sc);
+          {episodes.length > 0 ? episodes.map((ep, ei) => {
+            const epScenes = scenes.filter(s => (s.episode_key || 'ep_01') === ep.episode_key);
+            const isEpSel = selectedEpisodeKey === ep.episode_key && !selectedScene;
             return (
-              <FinalDraftScene
-                key={sc.scene_key || globalIdx}
-                scene={sc}
-                sceneIndex={globalIdx}
-                episodes={episodes}
-                scenes={scenes}
-                confirmed={confirmed}
-                onUpdateScene={updateScene}
-                onUpdateDialogue={updateDialogue}
-                onAddDialogue={addDialogue}
-                onRemoveDialogue={removeDialogue}
-              />
+              <div key={ep.episode_key} ref={el => { epRefs.current[ep.episode_key] = el; }}>
+                {/* 에피소드 헤더 카드 */}
+                <div style={{ outline: isEpSel ? '2px solid rgba(245,158,11,0.35)' : 'none', borderRadius: 10, transition: 'outline 0.15s' }}>
+                  <EpisodePanel
+                    episode={ep} epIndex={ei}
+                    sceneCount={epScenes.length}
+                    confirmed={confirmed}
+                    onUpdate={(field, value) => updateEpisode(ep.episode_key, field, value)}
+                  />
+                </div>
+                <div style={{ margin: '40px 0 32px', borderTop: '1px solid rgba(255,255,255,0.07)' }} />
+
+                {/* 해당 EP의 씬 카드들 */}
+                {epScenes.map((sc) => {
+                  const globalIdx = scenes.indexOf(sc);
+                  const isScSel = selectedScene?.scene_key === sc.scene_key;
+                  return (
+                    <div key={sc.scene_key || globalIdx}
+                      ref={el => { sceneRefs.current[sc.scene_key] = el; }}
+                      style={{ outline: isScSel ? '2px solid rgba(0,255,180,0.3)' : 'none', borderRadius: 8, transition: 'outline 0.15s' }}>
+                      <FinalDraftScene
+                        scene={sc}
+                        sceneIndex={globalIdx}
+                        episodes={episodes}
+                        scenes={scenes}
+                        confirmed={confirmed}
+                        onUpdateScene={updateScene}
+                        onUpdateDialogue={updateDialogue}
+                        onAddDialogue={addDialogue}
+                        onRemoveDialogue={removeDialogue}
+                      />
+                    </div>
+                  );
+                })}
+
+                {/* EP 구분선 */}
+                {ei < episodes.length - 1 && (
+                  <div style={{ margin: '16px 0 56px', borderTop: '2px solid rgba(245,158,11,0.12)', position: 'relative' }}>
+                    <span style={{ position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg)', padding: '0 12px', fontSize: 9, color: 'rgba(245,158,11,0.4)', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.1em' }}>
+                      EP{String(ei + 2).padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
+              </div>
             );
-          })}
-
-          {/* 에피소드 선택 시 스크롤 모드 아닌 경우 → 에피소드 패널만 */}
-          {!scrollMode && !selectedScene && selectedEpisode && (
-            <EpisodePanel
-              episode={selectedEpisode} epIndex={selectedEpIndex}
-              sceneCount={scenes.filter(s => (s.episode_key || 'ep_01') === selectedEpisodeKey).length}
-              confirmed={confirmed}
-              onUpdate={(field, value) => updateEpisode(selectedEpisode.episode_key, field, value)}
-            />
+          }) : (
+            /* 에피소드 없이 씬만 있는 경우 */
+            scenes.map((sc, i) => {
+              const isScSel = selectedScene?.scene_key === sc.scene_key;
+              return (
+                <div key={sc.scene_key || i}
+                  ref={el => { sceneRefs.current[sc.scene_key] = el; }}
+                  style={{ outline: isScSel ? '2px solid rgba(0,255,180,0.3)' : 'none', borderRadius: 8, transition: 'outline 0.15s' }}>
+                  <FinalDraftScene
+                    scene={sc} sceneIndex={i} episodes={episodes} scenes={scenes}
+                    confirmed={confirmed}
+                    onUpdateScene={updateScene} onUpdateDialogue={updateDialogue}
+                    onAddDialogue={addDialogue} onRemoveDialogue={removeDialogue}
+                  />
+                </div>
+              );
+            })
           )}
 
-          {/* 아무것도 선택 안 됨 */}
-          {!selectedScene && !selectedEpisode && !scrollMode && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: 'rgba(255,255,255,0.2)' }}>
-              <svg width="28" height="28" viewBox="0 0 16 16" style={{ fill: 'currentColor' }}>
-                <path d="M1 3.5A1.5 1.5 0 012.5 2H6l1.5 2H14a1.5 1.5 0 011.5 1.5v7A1.5 1.5 0 0114 14H2.5A1.5 1.5 0 011 12.5v-9z" />
-              </svg>
-              <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', letterSpacing: '0.06em' }}>왼쪽에서 에피소드 또는 씬을 선택하세요</div>
-            </div>
-          )}
-
-          {/* 씬 이미지 이동 (승인 후) */}
-          {isApproved && selectedScene && (
-            <div style={{ maxWidth: 760, margin: '-20px auto 0', padding: '14px 18px', background: 'rgba(0,255,180,0.04)', border: '1px solid rgba(0,255,180,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* 씬 이미지 이동 배너 (승인 후) */}
+          {isApproved && (
+            <div style={{ maxWidth: 760, margin: '0 auto 32px', padding: '14px 18px', background: 'rgba(0,255,180,0.04)', border: '1px solid rgba(0,255,180,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--mint)', fontFamily: 'var(--font-mono)', marginBottom: 2, letterSpacing: '0.08em' }}>씬 이미지 생성 가능</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>씬 이미지 탭에서 이 씬의 이미지를 생성하세요</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>씬 이미지 탭에서 이미지를 생성하세요</div>
               </div>
               <button className="btn sm" style={{ background: 'var(--mint)', color: '#000', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 10 }}
                 onClick={() => setView && setView('scene-image')}>
