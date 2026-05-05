@@ -35,26 +35,54 @@ const Pagination = ({ page, totalPages, onPrev, onNext }) => (
   ) : null
 );
 
+const TABLE_META = {
+  rag_scenario: { label: '시나리오 RAG', badge: 'badge-blue' },
+  rag_image:    { label: '배경 이미지 RAG', badge: 'badge-violet' },
+  rag_video:    { label: '영상 RAG', badge: 'badge-mint' },
+};
+
 /* ── 통계 바 ───────────────────────────────────────────────────────────── */
 const StatsBar = ({ stats }) => {
   if (!stats || typeof stats !== 'object' || Object.keys(stats).length === 0) return null;
+
+  // 신규 구조: { rag_scenario: { detail, by_category }, rag_image: ..., rag_video: ... }
+  // 구형 구조: { by_category: { docu_ko: {...}, ... } } — fallback
+  const isNewStructure = Object.keys(stats).some(k => k.startsWith('rag_'));
+  if (!isNewStructure) return null; // 구형은 별도 표시 안 함
+
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-      {Object.entries(stats).map(([cat, s]) => (
-        <div key={cat} className="card" style={{ flex: '1 1 160px', padding: '12px 16px' }}>
-          <span className={`badge ${CAT_BADGE[cat] || 'badge-gray'}`} style={{ marginBottom: 8, display: 'inline-block' }}>{cat}</span>
-          <div style={{ display: 'flex', gap: 18 }}>
-            <div>
-              <div className="mono" style={{ fontSize: 20, fontWeight: 700 }}>{s.sources ?? '-'}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>소스</div>
+      {Object.entries(stats).map(([tbl, tblStats]) => {
+        const meta = TABLE_META[tbl] || { label: tbl, badge: 'badge-gray' };
+        // by_category 합산
+        const bycat = tblStats.by_category || {};
+        const totalSources = Object.values(bycat).reduce((a, s) => a + (s.sources ?? 0), 0);
+        const totalChunks  = Object.values(bycat).reduce((a, s) => a + (s.chunks  ?? 0), 0);
+        return (
+          <div key={tbl} className="card" style={{ flex: '1 1 180px', padding: '12px 16px' }}>
+            <span className={`badge ${meta.badge}`} style={{ marginBottom: 8, display: 'inline-block' }}>{meta.label}</span>
+            <div style={{ display: 'flex', gap: 18 }}>
+              <div>
+                <div className="mono" style={{ fontSize: 20, fontWeight: 700 }}>{totalSources || '-'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>소스</div>
+              </div>
+              <div>
+                <div className="mono" style={{ fontSize: 20, fontWeight: 700 }}>{totalChunks || '-'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>청크</div>
+              </div>
             </div>
-            <div>
-              <div className="mono" style={{ fontSize: 20, fontWeight: 700 }}>{s.chunks ?? '-'}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>청크</div>
-            </div>
+            {Object.keys(bycat).length > 0 && (
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+                {Object.entries(bycat).map(([cat, s]) => (
+                  <span key={cat} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'var(--bg3)', color: 'var(--text3)' }}>
+                    {cat} {s.chunks ?? 0}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -77,7 +105,7 @@ const ChunkTypeBadge = ({ type }) => {
 };
 
 /* ── 소스 품질 슬라이더 ─────────────────────────────────────────────── */
-const SourceQualitySlider = ({ urlHash, initialScore }) => {
+const SourceQualitySlider = ({ urlHash, initialScore, table }) => {
   const [val,    setVal]    = React.useState(initialScore ?? 1.0);
   const [saving, setSaving] = React.useState(false);
   const [saved,  setSaved]  = React.useState(false);
@@ -85,7 +113,8 @@ const SourceQualitySlider = ({ urlHash, initialScore }) => {
   const save = async () => {
     setSaving(true); setSaved(false);
     try {
-      await api.patch(`/rag/sources/${urlHash}/quality`, { source_quality_score: val });
+      const qs = table ? `?table=${table}` : '';
+      await api.patch(`/rag/sources/${urlHash}/quality${qs}`, { source_quality_score: val });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) { alert(e.message); }
@@ -152,6 +181,7 @@ const BackfillPanel = () => {
 
 /* ══ TAB 1: 소스 (수집 + 목록) ═════════════════════════════════════════ */
 const SourcesTab = ({ onStatsChange }) => {
+  const [table, setTable]               = React.useState('rag_scenario');
   const [sources, setSources]           = React.useState([]);
   const [total, setTotal]               = React.useState(0);
   const [offset, setOffset]             = React.useState(0);
@@ -167,21 +197,18 @@ const SourcesTab = ({ onStatsChange }) => {
   const [channelSearch, setChannelSearch] = React.useState('');
   const [typeFilter, setTypeFilter]       = React.useState('');
 
-  const [showBg, setShowBg] = React.useState(false);
-
-  const loadSources = React.useCallback(async (off = 0, typeF = typeFilter, bg = showBg) => {
+  const loadSources = React.useCallback(async (off = 0, typeF = typeFilter, tbl = table) => {
     setLoading(true);
     try {
-      const qs = new URLSearchParams({ limit: LIMIT, offset: off });
+      const qs = new URLSearchParams({ limit: LIMIT, offset: off, table: tbl });
       if (typeF) qs.set('chunk_type', typeF);
-      if (!bg) qs.set('exclude_category', 'background_ko');
       const data = await api.get(`/rag/sources?${qs}`);
       setSources(data.sources || []);
       setTotal(data.total || 0);
       setOffset(off);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [typeFilter, showBg]);
+  }, [typeFilter, table]);
 
   React.useEffect(() => { loadSources(); }, [loadSources]);
 
@@ -190,7 +217,7 @@ const SourcesTab = ({ onStatsChange }) => {
     if (!urls.length) return;
     setIngesting(true); setIngestResults(null);
     try {
-      const r = await api.post('/rag/ingest', { urls, force });
+      const r = await api.post('/rag/ingest', { urls, force, table });
       setIngestResults(r.results || []);
       setUrlsText('');
       loadSources();
@@ -202,7 +229,11 @@ const SourcesTab = ({ onStatsChange }) => {
   const delSource = async (hash) => {
     if (!confirm('이 소스와 모든 청크를 삭제할까요?')) return;
     setDeleting(hash);
-    try { await api.del(`/rag/sources/${hash}`); loadSources(offset); if (onStatsChange) onStatsChange(); }
+    try {
+      await api.del(`/rag/sources/${hash}?table=${table}`);
+      loadSources(offset);
+      if (onStatsChange) onStatsChange();
+    }
     catch (e) { alert(e.message); }
     finally { setDeleting(null); }
   };
@@ -228,6 +259,17 @@ const SourcesTab = ({ onStatsChange }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* 테이블 탭 */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        {Object.entries(TABLE_META).map(([tbl, meta]) => (
+          <button key={tbl}
+            className={`btn btn-sm ${table === tbl ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => { setTable(tbl); setOffset(0); setChannelFilter(''); setChannelSearch(''); setTypeFilter(''); loadSources(0, '', tbl); }}>
+            <span className={`badge ${meta.badge}`} style={{ fontSize: 10, marginRight: 6 }}>{meta.label}</span>
+          </button>
+        ))}
+      </div>
+
       {/* 수집 폼 */}
       <div className="card">
         <div style={{ fontWeight: 600, marginBottom: 12 }}>URL 수집</div>
@@ -291,12 +333,6 @@ const SourcesTab = ({ onStatsChange }) => {
               </button>
             ))}
             <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
-            {/* background 토글 */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text3)', cursor: 'pointer', userSelect: 'none' }}>
-              <input type="checkbox" checked={showBg} onChange={e => { setShowBg(e.target.checked); loadSources(0, typeFilter, e.target.checked); }} style={{ width: 'auto' }} />
-              배경 포함
-            </label>
-            <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
             {/* 채널 드롭다운 */}
             <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
               style={{ fontSize: 12, padding: '5px 8px', borderRadius: 6, background: 'var(--bg2)', border: `1px solid ${channelFilter ? 'var(--mint)' : 'var(--border)'}`, color: 'var(--text1)', maxWidth: 180 }}>
@@ -347,7 +383,7 @@ const SourcesTab = ({ onStatsChange }) => {
                     </td>
                     <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{s.ingested_at ? new Date(s.ingested_at).toLocaleString('ko') : '-'}</td>
                     <td>
-                      <SourceQualitySlider urlHash={s.url_hash} initialScore={s.source_quality_score ?? 1.0} />
+                      <SourceQualitySlider urlHash={s.url_hash} initialScore={s.source_quality_score ?? 1.0} table={table} />
                     </td>
                     <td>
                       <div className="flex gap-8">
@@ -370,7 +406,7 @@ const SourcesTab = ({ onStatsChange }) => {
       {/* 청크 타입 재분류 */}
       <BackfillPanel />
 
-      {drawerSource && <ChunksDrawer source={drawerSource} onClose={() => setDrawerSource(null)} />}
+      {drawerSource && <ChunksDrawer source={drawerSource} onClose={() => setDrawerSource(null)} table={table} />}
 
       {forceConfirm && (
         <div className="modal-backdrop" onClick={() => setForceConfirm(false)}>
@@ -395,6 +431,7 @@ const SearchTab = () => {
   const [query,      setQuery]      = React.useState('');
   const [searchN,    setSearchN]    = React.useState(5);
   const [searchType, setSearchType] = React.useState('');
+  const [searchTable, setSearchTable] = React.useState('rag_scenario');
   const [searching,  setSearching]  = React.useState(false);
   const [results,    setResults]    = React.useState(null);
   const [errMsg,     setErrMsg]     = React.useState(null);
@@ -403,7 +440,7 @@ const SearchTab = () => {
     if (!query.trim()) return;
     setSearching(true); setResults(null); setErrMsg(null);
     try {
-      const body = { query: query.trim(), n: searchN };
+      const body = { query: query.trim(), n: searchN, table: searchTable };
       if (searchType) body.chunk_type = searchType;
       const r = await api.post('/rag/search', body);
       setResults(r.results || []);
@@ -414,6 +451,17 @@ const SearchTab = () => {
   return (
     <div className="card" style={{ maxWidth: 760 }}>
       <div style={{ fontWeight: 600, marginBottom: 14 }}>RAG 검색 테스트</div>
+
+      {/* 테이블 선택 */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+        {Object.entries(TABLE_META).map(([tbl, meta]) => (
+          <button key={tbl}
+            className={`btn btn-sm ${searchTable === tbl ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setSearchTable(tbl)}>
+            {meta.label}
+          </button>
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="검색 쿼리..."
@@ -970,7 +1018,7 @@ const ChunkDetailModal = ({ chunk, onClose }) => (
   </div>
 );
 
-const ChunksDrawer = ({ source, onClose }) => {
+const ChunksDrawer = ({ source, onClose, table }) => {
   const [chunks, setChunks]             = React.useState([]);
   const [total, setTotal]               = React.useState(0);
   const [offset, setOffset]             = React.useState(0);
@@ -981,7 +1029,9 @@ const ChunksDrawer = ({ source, onClose }) => {
   const load = async (off = 0) => {
     setLoading(true);
     try {
-      const data = await api.get(`/rag/sources/${source.url_hash}/chunks?limit=${CHUNK_LIMIT}&offset=${off}`);
+      const qs = new URLSearchParams({ limit: CHUNK_LIMIT, offset: off });
+      if (table) qs.set('table', table);
+      const data = await api.get(`/rag/sources/${source.url_hash}/chunks?${qs}`);
       setChunks(data.chunks || []);
       setTotal(data.total_chunks ?? 0);
       setOffset(off);
@@ -994,7 +1044,8 @@ const ChunksDrawer = ({ source, onClose }) => {
   const openChunk = async (chunkIndex) => {
     setLoadingDetail(chunkIndex);
     try {
-      const data = await api.get(`/rag/sources/${source.url_hash}/chunks/${chunkIndex}`);
+      const qs = table ? `?table=${table}` : '';
+      const data = await api.get(`/rag/sources/${source.url_hash}/chunks/${chunkIndex}${qs}`);
       setDetail(data);
     } catch (e) { alert(e.message); }
     finally { setLoadingDetail(null); }
@@ -1066,7 +1117,7 @@ export const Rag = () => {
   const loadStats = React.useCallback(async () => {
     try {
       const data = await api.get('/rag/stats');
-      setStats(data.by_category ?? {});
+      setStats(data);
     } catch { /* 통계 없으면 숨김 */ }
   }, []);
 
